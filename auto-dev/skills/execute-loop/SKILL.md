@@ -48,7 +48,32 @@ description: Ralph Loop 驱动的迭代执行技能
 <promise>ALL TASKS DONE</promise>
 ```
 
-### 2. TDD 实现
+### 2. 应用规则
+
+> 调用 `auto-dev:apply-rules` 技能
+
+**加载并匹配经验规则：**
+
+根据当前任务描述，从 `.autodev/rules.md` 匹配相关规则：
+
+```
+📂 应用规则...
+- 加载规则: 5 条
+- 匹配结果: 2 条相关
+
+适用规则:
+- 用户登录成功后跳转首页
+- 表单验证使用前端实时校验
+```
+
+若无匹配规则：
+
+```
+📂 应用规则...
+- 无适用规则，继续执行
+```
+
+### 3. TDD 实现
 
 > 遵循 `superpowers:test-driven-development`
 
@@ -78,7 +103,7 @@ description: Ralph Loop 驱动的迭代执行技能
    结果: ✅ 测试仍然通过
 ```
 
-### 3. 验证
+### 4. 验证
 
 > 遵循 `superpowers:verification-before-completion`
 
@@ -96,7 +121,7 @@ description: Ralph Loop 驱动的迭代执行技能
 - 证据: [测试输出截图/日志]
 ```
 
-### 4. 结果处理
+### 5. 结果处理
 
 **成功路径：**
 
@@ -142,7 +167,7 @@ description: Ralph Loop 驱动的迭代执行技能
 请使用 /auto-dev:fix "问题描述" 提供修正指导
 ```
 
-### 5. 迭代继续
+### 6. 迭代继续
 
 本次迭代结束后：
 - Ralph Loop 自动进入下一次迭代

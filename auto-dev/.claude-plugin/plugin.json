@@ -1,6 +1,6 @@
 {
   "name": "auto-dev",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "自动化开发助手 - 快速迭代，持续学习",
   "author": {
     "name": "sasacoder",
@@ -8,8 +8,8 @@
   },
   "repository": "https://github.com/sasacoder/ai-native/tree/main/auto-dev",
   "license": "MIT",
-  "keywords": ["automation", "ai-development", "taskmaster", "ralph-loop", "experience-learning"],
-  "commands": ["auto-dev", "fix"],
-  "skills": ["execute-loop", "learn-from-fix"],
+  "keywords": ["automation", "ai-development", "taskmaster", "ralph-loop", "experience-learning", "rule-application"],
+  "commands": ["auto-dev", "fix", "status", "cancel"],
+  "skills": ["execute-loop", "learn-from-fix", "apply-rules"],
   "mcp_dependencies": ["taskmaster-ai"]
 }
