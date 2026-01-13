@@ -150,16 +150,3 @@ description: Ralph Loop 驱动的迭代执行技能
 - 每次迭代看到之前的工作成果（文件变更、git 历史）
 - 自动修正偏差，逐步逼近正确实现
 
----
-
-## 测试边界
-
-| 测试点 | 验证内容 |
-|-------|---------|
-| 任务获取 | next_task 返回空时输出 promise |
-| TDD 执行 | test-driven-development 流程正确 |
-| 验证执行 | verification-before-completion 流程正确 |
-| 成功处理 | set_task_status(done) 被调用 |
-| 失败处理 | systematic-debugging 被调用 |
-| 卡住处理 | 多次失败后暂停并提示用户 |
-| Promise 时机 | 仅在所有任务完成后输出 |

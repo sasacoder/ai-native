@@ -160,14 +160,3 @@ Ralph Loop 已启动
 - 执行技能: auto-dev:execute-loop
 ```
 
----
-
-## 测试边界
-
-| 测试点 | 验证内容 |
-|-------|---------|
-| 环境准备 | worktree 创建成功 |
-| 文档复制 | 设计文档成功复制到 worktree |
-| 任务检查 | 有未完成任务时跳过 parse_prd |
-| 任务拆解 | parse_prd 参数正确（numTasks=0） |
-| 循环启动 | Ralph Loop 参数正确（promise + max-iterations） |
