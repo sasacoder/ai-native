@@ -1,6 +1,6 @@
 {
   "name": "auto-dev",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "自动化开发助手 - 快速迭代，持续学习",
   "author": {
     "name": "sasacoder",
@@ -8,8 +8,65 @@
   },
   "repository": "https://github.com/sasacoder/ai-native/tree/main/auto-dev",
   "license": "MIT",
-  "keywords": ["automation", "ai-development", "taskmaster", "ralph-loop", "experience-learning", "rule-application"],
+  "keywords": [
+    "automation",
+    "ai-development",
+    "taskmaster",
+    "ralph-loop",
+    "experience-learning",
+    "rule-application",
+    "project-analysis",
+    "metrics"
+  ],
   "commands": ["auto-dev", "fix", "status", "cancel"],
-  "skills": ["execute-loop", "learn-from-fix", "apply-rules"],
-  "mcp_dependencies": ["taskmaster-ai"]
+  "skills": [
+    "execute-loop",
+    "learn-from-fix",
+    "apply-rules",
+    "analyze-project",
+    "track-history",
+    "calculate-metrics",
+    "migrate-data",
+    "cache-manager"
+  ],
+  "mcp_dependencies": ["taskmaster-ai"],
+  "capabilities": {
+    "project-analysis": "首次运行自动分析项目事实（技术栈、目录结构、组件、代码风格）",
+    "semantic-matching": "语义相似度规则匹配，支持任务类型分类和时间衰减",
+    "history-tracking": "执行历史记录，跟踪迭代次数、规则应用、修正次数",
+    "metrics-calculation": "成功率、平均迭代等指标计算和展示",
+    "completion-workflow": "完成后自动触发 finishing-a-development-branch 流程",
+    "data-migration": "支持从 V0.3 到 V0.4 的数据迁移",
+    "performance-caching": "多级缓存策略，确保 1000 规则匹配 < 100ms"
+  },
+  "changelog": {
+    "0.4.0": [
+      "新增: project-facts.json 自动分析",
+      "新增: 语义相似度规则匹配（任务类型 40% + 关键词 30% + 路径 20% + 时间 10%）",
+      "新增: task-history.json 执行历史跟踪",
+      "新增: metrics.json 指标计算和展示",
+      "新增: 完成检测和 finishing-a-development-branch 集成",
+      "新增: 数据迁移和版本控制",
+      "新增: 性能优化和缓存层",
+      "增强: status 命令显示项目指标",
+      "增强: 组件发现支持元数据提取",
+      "增强: 目录结构检测支持 monorepo"
+    ],
+    "0.3.0": [
+      "新增: apply-rules 技能",
+      "新增: status 和 cancel 命令",
+      "新增: execute-prompt 模板"
+    ],
+    "0.2.0": [
+      "新增: rules.md 经验规则",
+      "新增: fix 命令",
+      "新增: learn-from-fix 技能"
+    ],
+    "0.1.0": [
+      "初始版本",
+      "基础 auto-dev 命令",
+      "execute-loop 技能",
+      "Ralph Loop 集成"
+    ]
+  }
 }

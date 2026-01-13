@@ -1,0 +1,11 @@
+{
+  "totalTasks": 0,
+  "completedTasks": 0,
+  "successRate": 0,
+  "avgIterationsPerTask": 0,
+  "avgTimePerTask": "0m",
+  "rulesCount": 0,
+  "rulesAppliedCount": 0,
+  "fixesCount": 0,
+  "lastUpdated": null
+}

@@ -11,6 +11,7 @@ description: Ralph Loop 驱动的迭代执行技能
 - 获取并执行当前任务
 - 执行 TDD 流程
 - 处理执行结果
+- 记录执行历史（V0.4）
 - 输出完成信号
 
 ## 输入/输出
@@ -30,13 +31,15 @@ description: Ralph Loop 驱动的迭代执行技能
 ### 1. 获取当前任务
 
 调用 TaskMaster MCP 的 `next_task` 获取待执行任务：
-- 若有任务 → 继续步骤 2
+- 若有任务 → 记录任务开始，继续步骤 2
 - 若无待执行任务 → 输出 `<promise>ALL TASKS DONE</promise>` 并结束
 
 ```
 📋 获取任务...
 任务 #3: 实现用户登录功能
 状态: pending → in-progress
+
+📝 记录任务开始 → task-history.json
 ```
 
 或
@@ -127,11 +130,16 @@ description: Ralph Loop 驱动的迭代执行技能
 
 验证通过后，标记任务完成：
 - 调用 TaskMaster MCP 的 `set_task_status(taskId, 'done')`
+- 记录任务完成到 task-history.json
 - 本次迭代结束，Ralph Loop 自动进入下一迭代
 
 ```
 ✅ 任务 #3 完成
 状态: in-progress → done
+
+📝 记录任务完成 → task-history.json
+- 迭代数: 3
+- 用时: 25分钟
 ```
 
 **失败路径：**
@@ -174,4 +182,57 @@ description: Ralph Loop 驱动的迭代执行技能
 - 下一迭代调用 `next_task` 获取下一个待执行任务
 - 每次迭代看到之前的工作成果（文件变更、git 历史）
 - 自动修正偏差，逐步逼近正确实现
+
+### 7. 完成阶段（V0.4）
+
+当 `next_task` 返回无待执行任务时：
+
+**输出完成信号：**
+
+```
+📋 获取任务...
+无待执行任务
+
+<promise>ALL TASKS DONE</promise>
+```
+
+**显示完成统计：**
+
+```
+🎉 所有任务已完成！
+
+完成统计:
+- 任务: 5/5
+- 迭代: 12 次
+- 修正: 2 次
+- 新规则: 2 条
+- 成功率: 80%
+```
+
+**触发完成流程：**
+
+调用 `superpowers:finishing-a-development-branch` 技能：
+
+```
+是否进入完成流程？
+[1] 合并到主分支
+[2] 创建 PR
+[3] 稍后处理
+```
+
+**用户选择处理：**
+
+| 选择 | 动作 |
+|-----|------|
+| 合并到主分支 | 执行 git merge，删除 worktree |
+| 创建 PR | 推送分支，创建 PR，保留 worktree |
+| 稍后处理 | 保留分支和 worktree，退出 |
+
+```
+✅ 完成流程执行
+- 操作: 合并到主分支
+- 分支: feature/auto-dev-xxx → main
+- Worktree: 已清理
+```
+
 

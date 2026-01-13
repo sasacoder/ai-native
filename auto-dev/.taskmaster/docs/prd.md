@@ -1,220 +1,208 @@
-# Auto-Dev V0.3 PRD: 经验应用 + 状态管理
+# Auto-Dev V0.4 PRD: 优化和调优
 
 ## 目标
-实现经验规则的应用机制和执行状态管理，让积累的规则能自动应用到后续任务。
+优化执行效果，添加项目事实分析，完善用户体验。
 
 ## 范围
-- `apply-rules` Skill（规则应用）
-- `/auto-dev:status` 状态命令
-- `/auto-dev:cancel` 取消命令
-- `execute-prompt.md` 模板
-- 上下文加载机制
+- project-facts.json 自动分析
+- 规则匹配算法优化
+- 执行历史和指标记录
+- 完成阶段集成 (finishing-a-development-branch)
 
 ## 前置条件
-- V0.2 已完成（fix 命令和规则存储可用）
+- V0.3 已完成（规则应用和状态管理可用）
 
 ## 验收标准
-1. 执行任务时自动匹配并应用相关规则
-2. `/auto-dev:status` 显示当前执行状态
-3. `/auto-dev:cancel` 能安全取消执行
-4. execute-prompt.md 模板正确填充变量
+1. 首次运行自动分析项目事实
+2. 规则匹配准确率提升
+3. 完成后自动触发分支完成流程
+4. 执行历史和成功率指标可查看
 
 ---
 
 ## 组件定义
 
-### 1. apply-rules Skill (skills/apply-rules/SKILL.md)
-
-#### 职责
-- 加载项目规则文件
-- 匹配当前任务相关的规则
-- 将规则注入执行上下文
+### 1. project-facts.json 自动分析
 
 #### 触发时机
-- execute-loop 每次迭代开始时
-- 新任务开始实现前
+- /auto-dev 命令首次运行时
+- .autodev/project-facts.json 不存在时
 
-#### 流程
-1. **加载规则**
-   - 读取 .autodev/rules.md
-   - 解析所有已记录的业务规则
-
-2. **规则匹配**
-   - 分析当前任务描述
-   - 匹配相关的历史规则
-   - 按相关度排序
-
-3. **注入上下文**
-   - 将匹配的规则作为约束条件
-   - 添加到任务执行的 prompt 中
-
-#### 规则应用示例
+#### 分析内容
+```json
+{
+  "techStack": {
+    "language": "TypeScript",
+    "framework": "React",
+    "styling": "Tailwind CSS",
+    "testing": "Jest + React Testing Library"
+  },
+  "directoryConventions": {
+    "components": "src/components/",
+    "hooks": "src/hooks/",
+    "services": "src/services/",
+    "utils": "src/utils/"
+  },
+  "existingComponents": [
+    "Button",
+    "Modal",
+    "Form",
+    "Table"
+  ],
+  "codeStyle": {
+    "naming": "camelCase for functions, PascalCase for components",
+    "indentation": "2 spaces",
+    "quotes": "single"
+  },
+  "analyzedAt": "2024-01-15T10:30:00Z"
+}
 ```
-任务: "实现用户登录功能"
 
-匹配规则:
-- "用户登录成功后跳转首页"
-- "密码必须使用 bcrypt 加密"
-- "登录失败要记录日志"
-
-→ 这些规则会自动应用到实现过程中
-```
+#### 分析流程
+1. 扫描 package.json 识别技术栈
+2. 分析目录结构识别约定
+3. 扫描已有组件/模块
+4. 分析代码风格（命名、缩进等）
 
 #### 测试边界
 | 测试点 | 验证内容 |
 |-------|---------|
-| 规则加载 | rules.md 解析正确 |
-| 规则匹配 | 相关规则被正确识别 |
-| 排序逻辑 | 按相关度排序 |
-| 无规则时 | rules.md 不存在时返回空列表 |
-| 无匹配时 | 无相关规则时返回空列表 |
+| 触发条件 | 仅在文件不存在时分析 |
+| 技术栈识别 | 正确识别主要框架和库 |
+| 目录约定 | 正确识别项目目录结构 |
+| 组件扫描 | 找到已有的可复用组件 |
+| 代码风格 | 正确识别命名和格式约定 |
 
 ---
 
-### 2. /auto-dev:status 命令 (commands/status.md)
+### 2. 规则匹配算法优化
 
-#### 职责
-- 聚合展示执行状态信息
-- 只读操作，不修改任何状态
+#### 当前算法（V0.3）
+- 简单关键词匹配
+- 按匹配数量排序
 
-#### 输出信息
-- 当前工作分支
-- 任务进度: 已完成 / 总数
-- 当前任务详情
-- Ralph Loop 迭代次数
-- 最近的验证结果
+#### 优化后算法（V0.4）
+- 语义相似度匹配
+- 考虑任务类型（登录、支付、列表等）
+- 考虑涉及的文件路径
+- 权重排序
 
-#### 示例输出
+#### 匹配维度
+| 维度 | 权重 | 说明 |
+|-----|------|------|
+| 任务类型 | 40% | 登录→登录规则，支付→支付规则 |
+| 关键词 | 30% | 任务描述中的关键词匹配 |
+| 文件路径 | 20% | 涉及相同文件的规则优先 |
+| 时间衰减 | 10% | 近期规则权重略高 |
+
+#### 测试边界
+| 测试点 | 验证内容 |
+|-------|---------|
+| 语义匹配 | 相似任务能匹配到相关规则 |
+| 类型识别 | 正确识别任务类型 |
+| 权重计算 | 排序结果符合预期 |
+| 性能 | 1000 条规则内响应 < 100ms |
+
+---
+
+### 3. 执行历史和指标
+
+#### task-history.json 结构
+```json
+{
+  "executions": [
+    {
+      "taskId": "1",
+      "taskTitle": "实现用户登录",
+      "startedAt": "2024-01-15T10:00:00Z",
+      "completedAt": "2024-01-15T10:25:00Z",
+      "iterations": 3,
+      "status": "done",
+      "rulesApplied": ["rule-001", "rule-002"],
+      "fixesReceived": 1
+    }
+  ]
+}
+```
+
+#### metrics.json 结构
+```json
+{
+  "totalTasks": 15,
+  "completedTasks": 12,
+  "successRate": 0.8,
+  "avgIterationsPerTask": 2.5,
+  "avgTimePerTask": "18m",
+  "rulesCount": 8,
+  "rulesAppliedCount": 45,
+  "fixesCount": 5,
+  "lastUpdated": "2024-01-15T15:00:00Z"
+}
+```
+
+#### 指标计算
+- 成功率 = 一次通过的任务 / 总任务
+- 平均迭代数 = 总迭代次数 / 完成任务数
+- 规则有效率 = 应用规则后一次通过 / 应用规则次数
+
+---
+
+### 4. 完成阶段集成
+
+#### 触发条件
+- Ralph Loop 输出 `<promise>ALL TASKS DONE</promise>` 后
+- 所有任务状态为 done
+
+#### 流程
+1. **确认完成**
+   ```
+   🎉 所有任务已完成！
+
+   完成统计:
+   - 任务: 5/5
+   - 迭代: 12 次
+   - 修正: 2 次
+   - 新规则: 2 条
+
+   是否进入完成流程？
+   [合并到主分支] [创建 PR] [稍后处理]
+   ```
+
+2. **执行完成操作**
+   - 调用 superpowers:finishing-a-development-branch
+   - 根据用户选择执行合并/PR/清理
+
+#### 测试边界
+| 测试点 | 验证内容 |
+|-------|---------|
+| 触发时机 | 仅在所有任务完成后触发 |
+| 统计准确 | 完成统计数据正确 |
+| 用户选择 | 三个选项都能正确执行 |
+| 分支操作 | finishing 流程正确执行 |
+
+---
+
+### 5. /auto-dev:status 增强
+
+#### 新增输出
 ```
 📊 Auto-Dev 状态
 
 分支: feature/user-auth-20240112
-进度: 2/5 任务完成
+进度: 4/5 任务完成 (80%)
 
-当前任务: #3 JWT 生成/验证
+当前任务: #5 添加密码重置
 状态: in-progress
-迭代: 3
+迭代: 2
+
+项目指标:
+- 成功率: 75%
+- 平均迭代: 2.3 次/任务
+- 已应用规则: 12 次
+- 累计修正: 3 次
 
 最近验证:
-✅ 测试通过 (12/12)
-```
-
-#### 测试边界
-| 测试点 | 验证内容 |
-|-------|---------|
-| 分支信息 | 正确读取当前 git 分支 |
-| 任务进度 | TaskMaster get_tasks 返回值正确解析 |
-| 迭代次数 | 读取正确 |
-| 无状态时 | 优雅处理文件不存在的情况 |
-
----
-
-### 3. /auto-dev:cancel 命令 (commands/cancel.md)
-
-#### 职责
-- 停止 Ralph Loop
-- 保留工作成果
-- 提供用户确认
-
-#### 流程
-1. **停止 Ralph Loop**
-   - 删除状态文件
-
-2. **保留工作成果**
-   - 当前分支的代码变更保留
-   - TaskMaster 任务状态保留
-
-3. **用户确认**
-   ```
-   ⚠️ 确认取消 Auto-Dev？
-
-   当前进度: 2/5 任务完成
-   未完成的任务将保持 pending 状态
-
-   [确认取消] [继续执行]
-   ```
-
-#### 测试边界
-| 测试点 | 验证内容 |
-|-------|---------|
-| 循环停止 | 状态文件被删除 |
-| 成果保留 | git 分支和文件变更不受影响 |
-| 任务状态 | TaskMaster 任务状态保持不变 |
-| 用户确认 | 确认对话框正确显示进度 |
-| 无循环时 | 优雅处理无活跃循环的情况 |
-
----
-
-### 4. execute-prompt.md 模板 (templates/execute-prompt.md)
-
-#### 职责
-- 定义执行上下文的结构
-- 提供变量占位符
-
-#### 模板内容
-```
-你正在执行 Auto-Dev 自动化开发任务。
-
-## 当前任务
-- 任务ID: {{task_id}}
-- 任务描述: {{task_description}}
-- 依赖任务: {{dependencies}}
-
-## 项目上下文
-{{project_facts}}
-
-## 适用规则
-{{matched_rules}}
-
-## 执行要求
-1. 遵循 TDD 流程（先写测试，再实现）
-2. 每次修改后运行验证
-3. 必须有验证证据才能标记完成
-4. 若遇到问题，调用 systematic-debugging
-
-## 完成条件
-当任务验证通过后，调用 TaskMaster set_task_status(done)
-```
-
-#### 变量说明
-| 变量 | 来源 | 说明 |
-|-----|------|------|
-| `{{task_id}}` | TaskMaster next_task | 当前任务 ID |
-| `{{task_description}}` | TaskMaster next_task | 任务描述 |
-| `{{dependencies}}` | TaskMaster next_task | 依赖的任务列表 |
-| `{{project_facts}}` | .autodev/project-facts.json | 项目技术栈、目录结构等 |
-| `{{matched_rules}}` | apply-rules skill | 匹配的经验规则 |
-
-#### 测试边界
-| 测试点 | 验证内容 |
-|-------|---------|
-| 变量替换 | 所有 `{{变量}}` 被正确替换 |
-| 空值处理 | 变量为空时不产生错误 |
-| 格式完整 | 输出包含所有必要章节 |
-
----
-
-### 5. 更新 execute-loop Skill
-
-在 execute-loop 中添加规则应用步骤：
-
-```markdown
-## 单次迭代流程
-
-1. **获取当前任务**
-   - 调用 TaskMaster next_task 获取待执行任务
-   - 若无待执行任务 → 输出 `<promise>ALL TASKS DONE</promise>`
-
-2. **应用经验规则** ← 新增
-   - 调用 apply-rules skill
-   - 匹配当前任务相关的历史规则
-
-3. **构建执行上下文** ← 新增
-   - 使用 templates/execute-prompt.md 模板
-   - 填充变量：任务信息、项目事实、匹配的规则
-
-4. **TDD 实现**
-   ...（其余不变）
+✅ 测试通过 (18/18)
 ```
 
 ---
@@ -223,7 +211,7 @@
 ```json
 {
   "name": "auto-dev",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "自动化开发助手 - 快速迭代，持续学习",
   "commands": ["auto-dev", "fix", "status", "cancel"],
   "skills": ["execute-loop", "learn-from-fix", "apply-rules"],
@@ -233,6 +221,17 @@
 
 ---
 
+## .autodev/ 完整结构
+```
+.autodev/
+├── rules.md                # V0.2 - 业务规则
+├── project-facts.json      # V0.4 - 项目事实
+├── task-history.json       # V0.4 - 执行历史
+└── metrics.json            # V0.4 - 成功率指标
+```
+
+---
+
 ## 依赖
-- V0.2 所有组件
-- .autodev/rules.md（V0.2 创建）
+- V0.3 所有组件
+- superpowers:finishing-a-development-branch

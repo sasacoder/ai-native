@@ -2,198 +2,259 @@
   "master": {
     "tasks": [
       {
-        "id": "22",
-        "title": "Create apply-rules Skill structure and rule loading mechanism",
-        "description": "Implement the foundational apply-rules Skill that loads and parses project rules from .autodev/rules.md file. This skill is responsible for reading stored business rules and preparing them for matching against current tasks.",
-        "details": "Create skills/apply-rules/SKILL.md with the following implementation:\n1. Implement rule file loader that reads .autodev/rules.md\n2. Parse markdown format rules into structured data (rule text, context, category)\n3. Handle missing or empty rules.md gracefully (return empty list)\n4. Store parsed rules in memory for matching phase\n5. Implement error handling for file read failures\n\nPseudo-code:\n```\nfunction loadRules():\n  try:\n    content = readFile('.autodev/rules.md')\n    rules = parseMarkdown(content)\n    return rules\n  catch FileNotFound:\n    return []\n  catch ParseError:\n    log error and return []\n```\n\nImplementation should follow Node.js/TypeScript best practices with proper error handling and logging.",
-        "testStrategy": "Unit tests should verify: (1) Correct parsing of rules.md with multiple rules, (2) Empty list returned when rules.md doesn't exist, (3) Proper error handling for malformed markdown, (4) Rules are stored with metadata (text, line number, category)",
+        "id": "35",
+        "title": "Implement project-facts.json auto-analysis on first run",
+        "description": "Automatically analyze and generate project-facts.json when /auto-dev command is first executed and the file doesn't exist. This includes scanning package.json for tech stack, analyzing directory structure, discovering existing components, and detecting code style conventions.",
+        "details": "Create a ProjectFactsAnalyzer class that:\n1. Checks if .autodev/project-facts.json exists\n2. If not, scans package.json to extract dependencies (language, framework, testing libraries)\n3. Analyzes directory structure to identify conventions (src/components/, src/hooks/, etc.)\n4. Recursively scans project directories to find existing components/modules\n5. Analyzes code files to detect naming conventions (camelCase vs PascalCase), indentation (spaces vs tabs), quote style\n6. Generates project-facts.json with structure: { techStack, directoryConventions, existingComponents, codeStyle, analyzedAt }\n7. Stores in .autodev/project-facts.json\n\nImplementation approach:\n- Use fs module to read package.json and scan directories\n- Parse AST or regex patterns to detect code style\n- Cache results to avoid re-analysis\n- Handle edge cases: missing package.json, empty directories, mixed code styles",
+        "testStrategy": "Unit tests: (1) Verify analysis only runs when file doesn't exist, (2) Test tech stack detection with sample package.json files, (3) Test directory structure recognition with mock file systems, (4) Test component discovery with sample React components, (5) Test code style detection with various formatting patterns. Integration tests: Run on real projects and validate output matches expected structure.",
         "priority": "high",
         "dependencies": [],
         "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-01-13T08:32:38.276Z"
+        "updatedAt": "2026-01-13T08:54:52.859Z"
       },
       {
-        "id": "23",
-        "title": "Implement rule matching algorithm based on task description",
-        "description": "Develop the rule matching logic that analyzes current task descriptions and identifies relevant historical rules. Rules should be matched using semantic similarity and ranked by relevance score.",
-        "details": "Implement matching algorithm in apply-rules Skill:\n1. Create similarity scoring function (use keyword matching, semantic analysis, or embedding-based approach)\n2. Compare current task description against all loaded rules\n3. Filter rules with relevance score above threshold (e.g., 0.5)\n4. Sort matched rules by relevance score (descending)\n5. Return top N rules (configurable, default 5)\n\nPseudo-code:\n```\nfunction matchRules(taskDescription, rules):\n  matches = []\n  for each rule in rules:\n    score = calculateSimilarity(taskDescription, rule.text)\n    if score > THRESHOLD:\n      matches.push({rule, score})\n  return sortByScore(matches, descending)\n```\n\nConsider using string similarity libraries or simple keyword overlap for MVP. Can be enhanced with embeddings later.",
-        "testStrategy": "Test with various task descriptions: (1) Task with exact keyword match should rank high, (2) Task with partial match should be included, (3) Unrelated task should return empty or low-scoring results, (4) Sorting order verified by relevance scores, (5) Edge case: empty task description",
+        "id": "36",
+        "title": "Implement semantic similarity matching for rule selection",
+        "description": "Enhance rule matching algorithm from simple keyword matching to semantic similarity-based matching. Implement weighted scoring system considering task type, keywords, file paths, and temporal decay to improve rule selection accuracy.",
+        "details": "Create a RuleMatchingEngine class with:\n1. Task type classifier: Identify task categories (login, payment, list, form, etc.) using keyword patterns and context\n2. Semantic similarity calculator: Use string similarity algorithms (Levenshtein, cosine similarity) or lightweight NLP to compare task descriptions with rule descriptions\n3. Weighted scoring system:\n   - Task type match: 40% weight\n   - Keyword match: 30% weight\n   - File path relevance: 20% weight\n   - Temporal decay: 10% weight (recent rules score higher)\n4. Ranking algorithm: Sort rules by composite score\n5. Performance optimization: Cache similarity scores, limit rule set to top N candidates\n\nImplementation:\n- Use string-similarity npm package or implement Levenshtein distance\n- Create task type taxonomy and pattern matching\n- Implement exponential decay for temporal weighting\n- Add caching layer for frequently matched rules",
+        "testStrategy": "Unit tests: (1) Test task type classification with various task descriptions, (2) Test semantic similarity scoring with known similar/dissimilar pairs, (3) Test weight calculation and ranking order, (4) Test temporal decay function. Performance tests: Verify response time < 100ms with 1000 rules. Integration tests: Compare old vs new matching results on historical tasks.",
         "priority": "high",
         "dependencies": [
-          "22"
+          "35"
         ],
         "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-01-13T08:32:47.499Z"
+        "updatedAt": "2026-01-13T08:55:39.217Z"
       },
       {
-        "id": "24",
-        "title": "Integrate apply-rules into execute-loop Skill",
-        "description": "Update the execute-loop Skill to call apply-rules at the beginning of each iteration, before task execution. This ensures rules are applied to every task automatically.",
-        "details": "Modify execute-loop/SKILL.md to add rule application step:\n1. After getting current task from TaskMaster (step 1)\n2. Before TDD implementation (step 4)\n3. Call apply-rules skill with current task description\n4. Store matched rules in execution context\n5. Pass matched rules to execute-prompt template\n\nUpdate execute-loop flow:\n```\n1. Get current task (TaskMaster.next_task)\n2. Apply rules (apply-rules skill) ← NEW\n3. Build execution context (execute-prompt template) ← NEW\n4. TDD implementation\n5. Verify and mark complete\n```\n\nEnsure matched rules are available in the context for template variable substitution.",
-        "testStrategy": "Integration test: (1) Execute-loop calls apply-rules for each iteration, (2) Matched rules are passed to template, (3) Rules appear in final prompt sent to Claude, (4) Loop continues normally with or without matched rules",
+        "id": "37",
+        "title": "Create task-history.json tracking system",
+        "description": "Implement execution history tracking that records details of each task execution including timing, iterations, rules applied, and fixes received. Store in task-history.json for later analysis and metrics calculation.",
+        "details": "Create a TaskHistoryTracker class that:\n1. Hooks into task execution lifecycle (start, complete, iterate, fix)\n2. Records for each execution:\n   - taskId: unique identifier\n   - taskTitle: task description\n   - startedAt: ISO timestamp\n   - completedAt: ISO timestamp\n   - iterations: count of iterations needed\n   - status: 'done', 'in-progress', 'failed'\n   - rulesApplied: array of rule IDs used\n   - fixesReceived: count of fixes applied\n3. Appends to .autodev/task-history.json\n4. Implements data persistence and atomic writes\n5. Handles concurrent task tracking\n\nImplementation:\n- Create TaskExecution interface/type\n- Implement file-based append-only log pattern\n- Add transaction support for atomic writes\n- Implement cleanup/archival for old entries\n- Add query methods to retrieve history by date range, status, etc.",
+        "testStrategy": "Unit tests: (1) Test recording task start/completion, (2) Test iteration counting, (3) Test rules and fixes tracking, (4) Test concurrent writes. Integration tests: (1) Verify data persists correctly, (2) Test with multiple simultaneous tasks, (3) Validate JSON structure matches schema. Data integrity tests: Verify no data loss on process interruption.",
         "priority": "high",
         "dependencies": [
-          "23"
+          "35"
         ],
         "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-01-13T08:33:27.193Z"
+        "updatedAt": "2026-01-13T08:56:52.511Z"
       },
       {
-        "id": "25",
-        "title": "Create execute-prompt.md template with variable placeholders",
-        "description": "Implement the execute-prompt.md template that defines the execution context structure with all required variable placeholders for task information, project facts, and matched rules.",
-        "details": "Create templates/execute-prompt.md with the following structure:\n1. Header explaining Auto-Dev execution context\n2. Current Task section with {{task_id}}, {{task_description}}, {{dependencies}}\n3. Project Context section with {{project_facts}}\n4. Applicable Rules section with {{matched_rules}}\n5. Execution Requirements section (TDD, verification, debugging)\n6. Completion Conditions section\n\nTemplate content:\n```\n你正在执行 Auto-Dev 自动化开发任务。\n\n## 当前任务\n- 任务ID: {{task_id}}\n- 任务描述: {{task_description}}\n- 依赖任务: {{dependencies}}\n\n## 项目上下文\n{{project_facts}}\n\n## 适用规则\n{{matched_rules}}\n\n## 执行要求\n1. 遵循 TDD 流程\n2. 每次修改后运行验证\n3. 必须有验证证据\n4. 遇到问题调用 systematic-debugging\n\n## 完成条件\n当任务验证通过后，调用 TaskMaster set_task_status(done)\n```\n\nEnsure template is in markdown format and uses consistent placeholder syntax {{variable_name}}.",
-        "testStrategy": "Validation tests: (1) Template file exists and is readable, (2) All required placeholders are present, (3) Template structure is valid markdown, (4) No syntax errors in placeholder names",
+        "id": "38",
+        "title": "Implement metrics.json calculation and aggregation",
+        "description": "Create metrics calculation system that aggregates execution data from task-history.json to compute success rates, average iterations, rule effectiveness, and other KPIs. Store in metrics.json and update after each task completion.",
+        "details": "Create a MetricsCalculator class that:\n1. Reads task-history.json\n2. Calculates metrics:\n   - totalTasks: count of all tasks\n   - completedTasks: count of tasks with status='done'\n   - successRate: (tasks completed in 1 iteration) / totalTasks\n   - avgIterationsPerTask: sum of iterations / completedTasks\n   - avgTimePerTask: average duration formatted as 'Xm' or 'Xh Ym'\n   - rulesCount: total unique rules in system\n   - rulesAppliedCount: sum of all rule applications\n   - fixesCount: total fixes applied\n   - lastUpdated: ISO timestamp\n3. Implements incremental updates (only recalculate affected metrics)\n4. Handles edge cases (division by zero, empty history)\n5. Provides query methods for specific metrics\n\nImplementation:\n- Create Metrics interface matching schema\n- Implement efficient aggregation algorithms\n- Add caching with invalidation on history updates\n- Implement time formatting utilities\n- Add validation to ensure metric consistency",
+        "testStrategy": "Unit tests: (1) Test success rate calculation with various completion patterns, (2) Test average iteration calculation, (3) Test time formatting, (4) Test edge cases (empty history, single task). Integration tests: (1) Verify metrics update after task completion, (2) Test with historical data, (3) Validate metrics.json output format. Accuracy tests: Compare calculated metrics against manual calculations.",
         "priority": "high",
         "dependencies": [
-          "24"
+          "37"
         ],
         "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-01-13T08:33:52.870Z"
+        "updatedAt": "2026-01-13T08:57:27.502Z"
       },
       {
-        "id": "26",
-        "title": "Implement template variable substitution engine",
-        "description": "Create a template engine that replaces all {{variable}} placeholders with actual values from task data, project facts, and matched rules. Handle missing or null values gracefully.",
-        "details": "Implement template substitution in execute-loop or a dedicated template utility:\n1. Create function that takes template string and variable map\n2. Find all {{variable_name}} patterns using regex\n3. Replace with corresponding values from map\n4. Handle missing variables (use empty string or placeholder text)\n5. Handle special characters and escaping\n6. Return fully substituted prompt string\n\nPseudo-code:\n```\nfunction substituteTemplate(template, variables):\n  result = template\n  pattern = /\\{\\{([^}]+)\\}\\}/g\n  result = result.replace(pattern, (match, varName) => {\n    return variables[varName] || ''\n  })\n  return result\n```\n\nVariable map should include:\n- task_id, task_description, dependencies (from TaskMaster)\n- project_facts (from .autodev/project-facts.json)\n- matched_rules (from apply-rules skill output)",
-        "testStrategy": "Unit tests: (1) Single variable substitution, (2) Multiple variables in template, (3) Missing variable returns empty string, (4) Special characters handled correctly, (5) Nested or malformed placeholders handled gracefully, (6) Complex values (arrays, objects) formatted appropriately",
-        "priority": "high",
-        "dependencies": [
-          "25"
-        ],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-01-13T08:33:52.871Z"
-      },
-      {
-        "id": "27",
-        "title": "Implement /auto-dev:status command",
-        "description": "Create the status command that displays current execution state including branch, task progress, current task details, iteration count, and recent validation results. This is a read-only operation.",
-        "details": "Create commands/status.md with implementation:\n1. Read current git branch using `git rev-parse --abbrev-ref HEAD`\n2. Call TaskMaster get_tasks to retrieve all tasks and their statuses\n3. Calculate progress: count completed tasks / total tasks\n4. Get current task from TaskMaster next_task\n5. Read iteration count from execution state file (if exists)\n6. Read latest validation results from logs or state\n7. Format output in user-friendly markdown format\n\nPseudo-code:\n```\nfunction statusCommand():\n  branch = getGitBranch()\n  tasks = TaskMaster.get_tasks()\n  completed = count(tasks where status == 'done')\n  current = TaskMaster.next_task()\n  iterations = readIterationCount()\n  validation = readLatestValidation()\n  \n  return formatStatus({\n    branch, completed, tasks.length, current, iterations, validation\n  })\n```\n\nOutput format should match the example in PRD with emoji indicators and clear sections.",
-        "testStrategy": "Integration tests: (1) Correct git branch retrieved, (2) Task progress calculated correctly, (3) Current task details displayed, (4) Iteration count accurate, (5) Validation results shown, (6) Graceful handling when no execution in progress, (7) Output formatting is readable",
+        "id": "39",
+        "title": "Enhance /auto-dev:status command with metrics display",
+        "description": "Extend the status command to display comprehensive project metrics including progress, current task details, success rates, iteration statistics, and recent validation results in a user-friendly format.",
+        "details": "Enhance the status command handler to:\n1. Retrieve current branch name and task list\n2. Calculate progress percentage (completed/total tasks)\n3. Identify current in-progress task\n4. Load metrics.json and format for display\n5. Retrieve recent task history entries\n6. Format output with:\n   - Branch name and progress bar\n   - Current task with iteration count\n   - Project metrics (success rate, avg iterations, rules applied, fixes)\n   - Recent validation results with checkmarks\n7. Use emoji and colors for visual clarity\n8. Implement responsive formatting for different terminal widths\n\nImplementation:\n- Create StatusFormatter class\n- Implement progress bar visualization\n- Add color/emoji utilities\n- Create template for status output\n- Add metrics loading and formatting logic\n- Implement error handling for missing data files",
+        "testStrategy": "Unit tests: (1) Test progress calculation, (2) Test metrics formatting, (3) Test output generation. Integration tests: (1) Run status command and verify output format, (2) Test with various project states, (3) Verify all metrics display correctly. Visual tests: Manually verify output appearance in terminal.",
         "priority": "medium",
+        "dependencies": [
+          "38"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T08:58:22.792Z"
+      },
+      {
+        "id": "40",
+        "title": "Implement completion detection and finishing-a-development-branch integration",
+        "description": "Detect when all tasks are completed (Ralph Loop outputs 'ALL TASKS DONE') and trigger the finishing-a-development-branch superpowers workflow with user-friendly completion summary and options.",
+        "details": "Create a CompletionHandler class that:\n1. Monitors Ralph Loop output for '<promise>ALL TASKS DONE</promise>' signal\n2. Verifies all tasks have status='done'\n3. Generates completion summary:\n   - Task completion count\n   - Total iterations\n   - Fixes applied\n   - New rules created\n4. Displays interactive prompt with three options:\n   - [Merge to main branch]\n   - [Create PR]\n   - [Handle later]\n5. Based on user selection:\n   - Call superpowers:finishing-a-development-branch with appropriate parameters\n   - Pass context (branch name, summary, metrics)\n   - Handle response and provide feedback\n6. Implements timeout handling and error recovery\n\nImplementation:\n- Create completion detection logic\n- Implement interactive CLI prompt (use inquirer or similar)\n- Create wrapper for superpowers:finishing-a-development-branch call\n- Add logging for completion events\n- Implement state machine for completion workflow\n- Add rollback capability if finishing fails",
+        "testStrategy": "Unit tests: (1) Test completion detection logic, (2) Test summary generation, (3) Test option handling. Integration tests: (1) Test with mock Ralph Loop output, (2) Test superpowers integration, (3) Test user interaction flow. End-to-end tests: Run complete workflow and verify finishing-a-development-branch is called correctly.",
+        "priority": "high",
+        "dependencies": [
+          "38"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T08:57:55.023Z"
+      },
+      {
+        "id": "41",
+        "title": "Update plugin.json configuration for V0.4",
+        "description": "Update plugin.json to reflect V0.4 version, new capabilities, and dependencies. Ensure all new commands and skills are properly registered.",
+        "details": "Update .autodev/plugin.json with:\n1. Version: 0.4.0\n2. Description: '自动化开发助手 - 快速迭代，持续学习'\n3. Commands: ['auto-dev', 'fix', 'status', 'cancel']\n4. Skills: ['execute-loop', 'learn-from-fix', 'apply-rules']\n5. mcp_dependencies: ['taskmaster-ai']\n6. Add new capabilities section documenting:\n   - project-facts.json auto-analysis\n   - semantic rule matching\n   - execution history tracking\n   - metrics calculation\n   - completion workflow integration\n7. Validate JSON syntax\n8. Add changelog entry documenting V0.4 improvements\n\nImplementation:\n- Create/update plugin.json file\n- Validate against plugin schema\n- Add documentation comments\n- Ensure backward compatibility with V0.3",
+        "testStrategy": "Unit tests: (1) Validate JSON syntax, (2) Verify all required fields present, (3) Test schema compliance. Integration tests: (1) Verify plugin loads correctly, (2) Test command registration, (3) Verify MCP dependencies are recognized.",
+        "priority": "medium",
+        "dependencies": [
+          "35",
+          "36",
+          "37",
+          "38",
+          "40"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T09:03:28.678Z"
+      },
+      {
+        "id": "42",
+        "title": "Create .autodev directory structure and initialization",
+        "description": "Implement initialization logic to create and manage the complete .autodev directory structure with all required files (rules.md, project-facts.json, task-history.json, metrics.json, plugin.json).",
+        "details": "Create an AutoDevInitializer class that:\n1. Checks if .autodev directory exists\n2. Creates directory if missing\n3. Initializes files with proper structure:\n   - rules.md: Empty or template for business rules (from V0.2)\n   - project-facts.json: Generated by ProjectFactsAnalyzer (task 35)\n   - task-history.json: Empty array structure { executions: [] }\n   - metrics.json: Initial metrics with zeros\n   - plugin.json: V0.4 configuration\n4. Implements idempotent initialization (safe to run multiple times)\n5. Handles permission errors gracefully\n6. Provides migration logic from V0.3 if needed\n7. Validates all files after creation\n\nImplementation:\n- Use fs.promises for async file operations\n- Create template files\n- Implement directory creation with proper permissions\n- Add validation checks\n- Implement error handling and logging\n- Add rollback capability on partial failure",
+        "testStrategy": "Unit tests: (1) Test directory creation, (2) Test file initialization, (3) Test idempotency. Integration tests: (1) Test on clean project, (2) Test on project with existing .autodev, (3) Test migration from V0.3. File system tests: Verify all files created with correct permissions and content.",
+        "priority": "high",
         "dependencies": [],
         "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-01-13T08:34:18.467Z"
+        "updatedAt": "2026-01-13T08:54:52.860Z"
       },
       {
-        "id": "28",
-        "title": "Implement /auto-dev:cancel command with user confirmation",
-        "description": "Create the cancel command that safely stops the Ralph Loop while preserving work progress. Include user confirmation dialog showing current progress before cancellation.",
-        "details": "Create commands/cancel.md with implementation:\n1. Check if execution is currently in progress (state file exists)\n2. Display confirmation dialog with current progress\n3. Get task progress from TaskMaster\n4. Show pending tasks count\n5. Wait for user confirmation (yes/no)\n6. If confirmed:\n   - Delete execution state file\n   - Log cancellation event\n   - Preserve git branch and file changes\n   - Keep TaskMaster task statuses unchanged\n7. If cancelled:\n   - Return to normal execution\n\nPseudo-code:\n```\nfunction cancelCommand():\n  if not isExecutionActive():\n    return \"No active execution\"\n  \n  progress = getTaskProgress()\n  confirmed = showConfirmDialog(progress)\n  \n  if confirmed:\n    deleteStateFile()\n    logEvent('execution_cancelled')\n    return \"Execution cancelled. Work preserved.\"\n  else:\n    return \"Cancellation aborted.\"\n```\n\nConfirmation dialog should show:\n- Current progress (X/Y tasks completed)\n- Number of pending tasks\n- Warning about cancellation\n- Yes/No options",
-        "testStrategy": "Integration tests: (1) Detects active execution correctly, (2) Shows confirmation dialog with accurate progress, (3) State file deleted on confirmation, (4) Git changes preserved after cancellation, (5) TaskMaster task statuses unchanged, (6) Graceful handling when no execution active, (7) User can abort cancellation",
-        "priority": "medium",
-        "dependencies": [],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-01-13T08:34:46.359Z"
-      },
-      {
-        "id": "29",
-        "title": "Create execution state management system",
-        "description": "Implement a state management system that tracks execution progress, iteration count, and current task. This supports both status command and cancel command operations.",
-        "details": "Create a state management module (e.g., .autodev/state.json or similar):\n1. Define state schema with fields:\n   - execution_active: boolean\n   - start_time: timestamp\n   - current_task_id: number\n   - iteration_count: number\n   - last_validation: object\n   - branch: string\n2. Implement state read/write functions\n3. Initialize state when execute-loop starts\n4. Update iteration count after each loop iteration\n5. Update current task when task changes\n6. Update validation results after verification\n7. Clear state when execution completes or is cancelled\n\nState file location: .autodev/execution-state.json\n\nPseudo-code:\n```\nfunction initializeState(taskId):\n  state = {\n    execution_active: true,\n    start_time: now(),\n    current_task_id: taskId,\n    iteration_count: 0,\n    branch: getGitBranch()\n  }\n  writeStateFile(state)\n\nfunction updateIterationCount():\n  state = readStateFile()\n  state.iteration_count += 1\n  writeStateFile(state)\n```",
-        "testStrategy": "Unit tests: (1) State file created correctly, (2) State read/write operations work, (3) Iteration count increments properly, (4) Current task updated correctly, (5) State cleared on completion, (6) Concurrent access handled safely, (7) Corrupted state file handled gracefully",
+        "id": "43",
+        "title": "Implement rule effectiveness tracking and learning",
+        "description": "Track which rules are most effective (lead to first-time task completion) and which need improvement. Use this data to prioritize rule application and inform rule refinement.",
+        "details": "Create a RuleEffectivenessTracker class that:\n1. Records rule application outcomes:\n   - rule_id: which rule was applied\n   - task_id: which task it was applied to\n   - iterations_to_completion: how many iterations before task passed\n   - success: boolean indicating if task passed after rule application\n2. Calculates effectiveness metrics:\n   - success_rate: (successful applications) / (total applications)\n   - avg_iterations_to_success: average iterations when rule led to success\n   - effectiveness_score: weighted combination of success rate and speed\n3. Implements rule ranking by effectiveness\n4. Provides recommendations for rule improvement\n5. Tracks rule usage trends over time\n6. Integrates with metrics.json for reporting\n\nImplementation:\n- Extend task-history.json schema to include rule outcome details\n- Create RuleEffectiveness interface\n- Implement aggregation algorithms\n- Add time-series analysis for trends\n- Create visualization data for metrics display\n- Implement feedback loop to prioritize effective rules",
+        "testStrategy": "Unit tests: (1) Test effectiveness calculation, (2) Test ranking algorithm, (3) Test trend analysis. Integration tests: (1) Track rules across multiple tasks, (2) Verify effectiveness scores update correctly, (3) Test rule prioritization. Validation tests: Compare effectiveness rankings against manual analysis.",
         "priority": "medium",
         "dependencies": [
-          "27",
-          "28"
+          "37",
+          "38"
         ],
         "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-01-13T08:34:46.361Z"
+        "updatedAt": "2026-01-13T09:00:50.111Z"
       },
       {
-        "id": "30",
-        "title": "Update plugin.json with new commands and skills",
-        "description": "Update the plugin.json configuration file to register the new status and cancel commands, and the apply-rules skill. Ensure version is bumped to 0.3.0.",
-        "details": "Update plugin.json with the following changes:\n1. Increment version to \"0.3.0\"\n2. Add \"status\" and \"cancel\" to commands array\n3. Add \"apply-rules\" to skills array\n4. Ensure \"taskmaster-ai\" is in mcp_dependencies\n5. Update description to reflect new features\n\nFinal plugin.json structure:\n```json\n{\n  \"name\": \"auto-dev\",\n  \"version\": \"0.3.0\",\n  \"description\": \"自动化开发助手 - 快速迭代，持续学习\",\n  \"commands\": [\"auto-dev\", \"fix\", \"status\", \"cancel\"],\n  \"skills\": [\"execute-loop\", \"learn-from-fix\", \"apply-rules\"],\n  \"mcp_dependencies\": [\"taskmaster-ai\"]\n}\n```\n\nEnsure JSON is valid and properly formatted.",
-        "testStrategy": "Validation tests: (1) JSON syntax is valid, (2) All required fields present, (3) Version correctly set to 0.3.0, (4) Commands array includes all four commands, (5) Skills array includes all three skills, (6) Dependencies correctly specified, (7) File is readable by plugin loader",
-        "priority": "medium",
-        "dependencies": [],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-01-13T08:35:13.065Z"
-      },
-      {
-        "id": "31",
-        "title": "Implement project facts loading from .autodev/project-facts.json",
-        "description": "Create functionality to load and parse project facts (tech stack, directory structure, etc.) from the project facts file. This data is used in the execute-prompt template.",
-        "details": "Implement project facts loader:\n1. Create function to read .autodev/project-facts.json\n2. Parse JSON and validate structure\n3. Handle missing file gracefully (return default/empty facts)\n4. Format facts for template substitution\n5. Support facts like:\n   - Technology stack (languages, frameworks, libraries)\n   - Directory structure\n   - Key conventions\n   - Testing framework\n   - Build tools\n6. Return formatted string for {{project_facts}} placeholder\n\nPseudo-code:\n```\nfunction loadProjectFacts():\n  try:\n    content = readFile('.autodev/project-facts.json')\n    facts = JSON.parse(content)\n    return formatFactsForTemplate(facts)\n  catch FileNotFound:\n    return ''\n  catch ParseError:\n    log error and return ''\n\nfunction formatFactsForTemplate(facts):\n  lines = []\n  for each key, value in facts:\n    lines.push(`- ${key}: ${value}`)\n  return lines.join('\\n')\n```\n\nExpected project-facts.json structure (from V0.2):\n```json\n{\n  \"tech_stack\": [...],\n  \"directory_structure\": {...},\n  \"conventions\": {...}\n}\n```",
-        "testStrategy": "Unit tests: (1) Valid project-facts.json parsed correctly, (2) Missing file returns empty string, (3) Malformed JSON handled gracefully, (4) Facts formatted as readable text, (5) All fact types supported, (6) Special characters escaped properly",
+        "id": "44",
+        "title": "Implement code style detection and enforcement",
+        "description": "Automatically detect project code style conventions (naming, indentation, quotes) from existing code and provide enforcement utilities to ensure generated code matches project standards.",
+        "details": "Create a CodeStyleDetector class that:\n1. Analyzes sample files to detect:\n   - Naming conventions: camelCase, PascalCase, snake_case, CONSTANT_CASE\n   - Indentation: spaces (2, 4) vs tabs\n   - Quote style: single vs double quotes\n   - Line length preferences\n   - Semicolon usage\n   - Trailing commas\n2. Implements confidence scoring for each detected style\n3. Handles mixed styles and provides most common convention\n4. Creates CodeStyleEnforcer that:\n   - Formats generated code to match detected style\n   - Provides linting rules\n   - Integrates with existing linters (ESLint, Prettier)\n5. Stores detected style in project-facts.json\n6. Provides utilities for code generation to use detected style\n\nImplementation:\n- Use AST parsing for accurate detection\n- Implement statistical analysis for style prevalence\n- Create formatter utilities\n- Add ESLint/Prettier integration\n- Implement confidence thresholds\n- Add manual override capability",
+        "testStrategy": "Unit tests: (1) Test style detection with various code samples, (2) Test confidence scoring, (3) Test code formatting. Integration tests: (1) Detect style in real projects, (2) Verify formatting matches detected style, (3) Test with mixed style projects. Accuracy tests: Compare detected styles against manual inspection.",
         "priority": "medium",
         "dependencies": [
-          "25"
+          "35"
         ],
         "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-01-13T08:35:13.066Z"
+        "updatedAt": "2026-01-13T08:59:01.861Z"
       },
       {
-        "id": "32",
-        "title": "Implement validation result tracking and display",
-        "description": "Create a system to track and store validation results (test passes/failures) so they can be displayed in the status command. This provides feedback on the latest execution results.",
-        "details": "Implement validation tracking:\n1. Create validation log file (.autodev/validation-log.json or similar)\n2. After each task verification, record:\n   - Task ID\n   - Timestamp\n   - Test results (passed/failed count)\n   - Test output summary\n   - Status (success/failure)\n3. Implement function to get latest validation result\n4. Format validation result for status command display\n5. Keep last N validation results (e.g., last 10)\n\nPseudo-code:\n```\nfunction recordValidation(taskId, testResults):\n  validation = {\n    task_id: taskId,\n    timestamp: now(),\n    passed: testResults.passed,\n    failed: testResults.failed,\n    status: testResults.failed == 0 ? 'success' : 'failure'\n  }\n  appendToLog(validation)\n\nfunction getLatestValidation():\n  log = readValidationLog()\n  return log[log.length - 1]\n```\n\nValidation log format:\n```json\n[\n  {\n    \"task_id\": 1,\n    \"timestamp\": \"2024-01-12T10:30:00Z\",\n    \"passed\": 12,\n    \"failed\": 0,\n    \"status\": \"success\"\n  }\n]\n```",
-        "testStrategy": "Unit tests: (1) Validation recorded correctly, (2) Latest validation retrieved, (3) Log file created and appended, (4) Old entries preserved, (5) Malformed log handled gracefully, (6) Validation formatted for display",
+        "id": "45",
+        "title": "Create comprehensive test suite for V0.4 features",
+        "description": "Develop comprehensive unit, integration, and end-to-end tests for all V0.4 features including project analysis, rule matching, history tracking, metrics, and completion workflow.",
+        "details": "Create test suite covering:\n1. Unit tests:\n   - ProjectFactsAnalyzer: tech stack, directory, components, style detection\n   - RuleMatchingEngine: type classification, similarity scoring, ranking\n   - TaskHistoryTracker: recording, persistence, queries\n   - MetricsCalculator: all metric calculations, edge cases\n   - CompletionHandler: detection, summary, options\n2. Integration tests:\n   - Full workflow from project analysis to completion\n   - History tracking across multiple tasks\n   - Metrics updates after each task\n   - Status command with real data\n3. End-to-end tests:\n   - Complete auto-dev session\n   - Finishing-a-development-branch integration\n   - Real project scenarios\n4. Performance tests:\n   - Rule matching with 1000+ rules < 100ms\n   - Metrics calculation with large history\n   - Status command response time\n5. Test fixtures and mocks:\n   - Sample projects with various tech stacks\n   - Mock task histories\n   - Sample rules and metrics\n\nImplementation:\n- Use Jest as test framework\n- Create test utilities and helpers\n- Implement test data generators\n- Add coverage reporting\n- Create CI/CD integration",
+        "testStrategy": "Execute all test suites with coverage reporting. Aim for >80% code coverage. Run performance benchmarks. Validate against acceptance criteria. Test on multiple Node.js versions.",
+        "priority": "high",
+        "dependencies": [
+          "35",
+          "36",
+          "37",
+          "38",
+          "39",
+          "40",
+          "42",
+          "43",
+          "44"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T09:01:41.396Z"
+      },
+      {
+        "id": "46",
+        "title": "Implement directory convention detection and validation",
+        "description": "Enhance project-facts.json analysis to accurately detect and validate directory structure conventions, identifying common patterns like src/components, src/hooks, src/services, src/utils.",
+        "details": "Create a DirectoryConventionDetector class that:\n1. Recursively scans project directory structure\n2. Identifies common directory patterns:\n   - Component directories: components/, Components/, src/components/\n   - Hook directories: hooks/, src/hooks/\n   - Service directories: services/, src/services/, api/\n   - Utility directories: utils/, src/utils/, helpers/\n   - Test directories: __tests__/, tests/, .test.js files\n   - Style directories: styles/, css/, src/styles/\n3. Calculates confidence for each convention based on:\n   - Directory existence\n   - File count in directory\n   - File naming patterns\n   - Import statements referencing directories\n4. Handles monorepo structures\n5. Detects non-standard conventions\n6. Provides recommendations for standardization\n7. Stores detected conventions in project-facts.json\n\nImplementation:\n- Use fs.promises for directory traversal\n- Implement pattern matching for directory names\n- Analyze file imports to validate conventions\n- Create confidence scoring algorithm\n- Handle edge cases (empty dirs, symlinks)\n- Add caching for performance",
+        "testStrategy": "Unit tests: (1) Test pattern detection with various directory structures, (2) Test confidence calculation, (3) Test monorepo handling. Integration tests: (1) Scan real projects, (2) Verify detected conventions match actual structure, (3) Test with non-standard projects. Validation tests: Compare detected conventions against manual inspection.",
+        "priority": "medium",
+        "dependencies": [
+          "35"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T08:59:38.108Z"
+      },
+      {
+        "id": "47",
+        "title": "Implement existing component discovery and cataloging",
+        "description": "Automatically discover and catalog existing reusable components in the project, extracting metadata like component name, location, props, and usage patterns.",
+        "details": "Create a ComponentDiscovery class that:\n1. Scans component directories identified by DirectoryConventionDetector\n2. For each component file:\n   - Extracts component name\n   - Parses component definition (function, class, etc.)\n   - Extracts props/interface definitions\n   - Identifies exported items\n   - Detects dependencies\n   - Finds usage examples in codebase\n3. Generates component metadata:\n   - name: component name\n   - path: file path\n   - type: functional, class, etc.\n   - props: array of prop definitions\n   - dependencies: internal and external\n   - usageCount: how many times used\n4. Creates component catalog in project-facts.json\n5. Implements component search and filtering\n6. Detects component patterns (Button, Modal, Form, Table, etc.)\n\nImplementation:\n- Use AST parsing (babel, typescript parser) for accurate extraction\n- Implement regex patterns for fallback parsing\n- Create component metadata interface\n- Implement usage analysis via import tracking\n- Add caching for performance\n- Handle TypeScript and JavaScript",
+        "testStrategy": "Unit tests: (1) Test component extraction from various formats, (2) Test props parsing, (3) Test dependency detection. Integration tests: (1) Discover components in real projects, (2) Verify metadata accuracy, (3) Test usage counting. Accuracy tests: Compare discovered components against manual inspection.",
+        "priority": "medium",
+        "dependencies": [
+          "35",
+          "46"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T09:02:12.994Z"
+      },
+      {
+        "id": "48",
+        "title": "Create data migration and versioning system",
+        "description": "Implement versioning and migration system for .autodev files to handle upgrades from V0.3 to V0.4 and future versions, ensuring backward compatibility and data preservation.",
+        "details": "Create a DataMigrationManager class that:\n1. Tracks version of .autodev files\n2. Implements migration strategies:\n   - V0.3 → V0.4: Add project-facts.json, task-history.json, metrics.json\n   - Preserve existing rules.md\n   - Convert task data to new history format if available\n3. Implements version detection:\n   - Check plugin.json version\n   - Validate file structure\n   - Detect missing files\n4. Provides migration functions:\n   - Backup existing data before migration\n   - Transform data to new schema\n   - Validate migrated data\n   - Rollback on failure\n5. Handles edge cases:\n   - Partial migrations\n   - Corrupted files\n   - Missing files\n6. Logs migration process\n7. Provides user feedback\n\nImplementation:\n- Create version interface\n- Implement migration registry\n- Create backup utilities\n- Add validation schemas\n- Implement rollback mechanism\n- Add comprehensive logging",
+        "testStrategy": "Unit tests: (1) Test version detection, (2) Test migration logic, (3) Test data transformation. Integration tests: (1) Migrate real V0.3 projects, (2) Verify data integrity, (3) Test rollback. Validation tests: Ensure no data loss during migration.",
+        "priority": "medium",
+        "dependencies": [
+          "42"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T09:00:18.138Z"
+      },
+      {
+        "id": "49",
+        "title": "Implement performance optimization and caching layer",
+        "description": "Add caching and optimization strategies to ensure rule matching, metrics calculation, and project analysis complete within performance targets (< 100ms for rule matching with 1000+ rules).",
+        "details": "Create a CacheManager class that:\n1. Implements multi-level caching:\n   - In-memory cache for frequently accessed data\n   - File-based cache for expensive computations\n   - TTL-based invalidation\n2. Caches:\n   - Project facts analysis results\n   - Rule similarity scores\n   - Metrics calculations\n   - Component catalog\n3. Implements cache invalidation:\n   - File change detection\n   - Manual invalidation triggers\n   - Time-based expiration\n4. Optimizes algorithms:\n   - Lazy loading of rules\n   - Batch processing for metrics\n   - Incremental updates\n5. Monitors performance:\n   - Tracks cache hit rates\n   - Measures operation times\n   - Identifies bottlenecks\n6. Provides cache statistics and management\n\nImplementation:\n- Use node-cache or similar for in-memory caching\n- Implement file-based cache with JSON\n- Add file watcher for invalidation\n- Create performance monitoring utilities\n- Implement cache warming strategies\n- Add cache statistics API",
+        "testStrategy": "Unit tests: (1) Test cache operations, (2) Test invalidation logic, (3) Test TTL expiration. Performance tests: (1) Measure rule matching time with 1000+ rules, (2) Test metrics calculation speed, (3) Verify cache hit rates. Integration tests: (1) Test cache behavior in real workflows, (2) Verify correctness with caching enabled.",
+        "priority": "medium",
+        "dependencies": [
+          "36",
+          "38"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T09:02:56.643Z"
+      },
+      {
+        "id": "50",
+        "title": "Create documentation and user guide for V0.4",
+        "description": "Develop comprehensive documentation covering V0.4 features, including project analysis, rule matching, metrics, and completion workflow. Include examples and troubleshooting guides.",
+        "details": "Create documentation including:\n1. Feature documentation:\n   - Project facts auto-analysis\n   - Semantic rule matching\n   - Execution history and metrics\n   - Completion workflow\n2. User guide:\n   - Getting started with V0.4\n   - Understanding metrics\n   - Interpreting status output\n   - Using completion workflow\n3. API documentation:\n   - ProjectFactsAnalyzer\n   - RuleMatchingEngine\n   - TaskHistoryTracker\n   - MetricsCalculator\n   - CompletionHandler\n4. Examples:\n   - Sample project analysis output\n   - Rule matching examples\n   - Metrics interpretation\n   - Completion workflow walkthrough\n5. Troubleshooting:\n   - Common issues and solutions\n   - Performance optimization\n   - Data recovery\n6. Migration guide from V0.3\n7. Architecture overview\n\nImplementation:\n- Create markdown documentation\n- Add code examples\n- Create diagrams for workflows\n- Add FAQ section\n- Create video tutorials (optional)\n- Add inline code documentation",
+        "testStrategy": "Review documentation for accuracy and completeness. Test all examples. Verify links and references. Get user feedback on clarity.",
         "priority": "low",
         "dependencies": [
-          "27"
+          "35",
+          "36",
+          "37",
+          "38",
+          "39",
+          "40",
+          "42",
+          "43",
+          "44",
+          "45",
+          "46",
+          "47",
+          "48",
+          "49"
         ],
         "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-01-13T08:35:13.067Z"
-      },
-      {
-        "id": "33",
-        "title": "Create comprehensive integration tests for V0.3 features",
-        "description": "Develop end-to-end integration tests that verify the complete workflow of rule application, status tracking, and cancellation. Tests should cover the interaction between all new components.",
-        "details": "Create integration test suite covering:\n1. Full execution flow with rule application:\n   - Load rules from .autodev/rules.md\n   - Match rules to task\n   - Apply rules to execute-prompt\n   - Verify rules appear in final prompt\n\n2. Status command workflow:\n   - Start execution\n   - Call status command\n   - Verify all information displayed correctly\n   - Update task progress\n   - Call status again\n   - Verify progress updated\n\n3. Cancel command workflow:\n   - Start execution\n   - Call cancel command\n   - Confirm cancellation\n   - Verify state file deleted\n   - Verify git changes preserved\n   - Verify TaskMaster state unchanged\n\n4. Template substitution:\n   - All variables substituted correctly\n   - Missing variables handled\n   - Complex values formatted properly\n\n5. Error scenarios:\n   - Missing rules.md\n   - Missing project-facts.json\n   - Corrupted state file\n   - No active execution\n\nTest framework: Jest or similar with mocking for git and file operations.",
-        "testStrategy": "Integration tests with mocked dependencies: (1) Mock git operations, (2) Mock file system, (3) Mock TaskMaster API, (4) Verify complete workflows, (5) Test error paths, (6) Verify state consistency, (7) Test concurrent operations",
-        "priority": "medium",
-        "dependencies": [
-          "22",
-          "23",
-          "24",
-          "25",
-          "26",
-          "27",
-          "28",
-          "29",
-          "30",
-          "31",
-          "32"
-        ],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-01-13T08:35:13.068Z"
-      },
-      {
-        "id": "34",
-        "title": "Create documentation for V0.3 features",
-        "description": "Write comprehensive documentation for the new features including apply-rules skill, status command, cancel command, and the updated execute-loop workflow. Include examples and troubleshooting guides.",
-        "details": "Create documentation files:\n1. skills/apply-rules/README.md:\n   - Overview of rule application\n   - How rules are matched\n   - Examples of rule matching\n   - Configuration options\n\n2. commands/status.md:\n   - Command usage and syntax\n   - Output explanation\n   - Example outputs\n   - Troubleshooting\n\n3. commands/cancel.md:\n   - Command usage and syntax\n   - Confirmation dialog explanation\n   - What happens to work in progress\n   - Recovery options\n\n4. WORKFLOW.md:\n   - Updated execute-loop flow with rule application\n   - Template variable explanation\n   - State management overview\n   - Complete example workflow\n\n5. TROUBLESHOOTING.md:\n   - Common issues and solutions\n   - Debug tips\n   - State file inspection\n   - Log file locations\n\nDocumentation should include:\n- Clear explanations\n- Code examples\n- Diagrams where helpful\n- Troubleshooting sections",
-        "testStrategy": "Documentation review: (1) All features documented, (2) Examples are accurate, (3) Commands match implementation, (4) No broken links, (5) Markdown formatting correct, (6) Screenshots/diagrams present where needed",
-        "priority": "low",
-        "dependencies": [
-          "22",
-          "27",
-          "28"
-        ],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-01-13T08:35:13.068Z"
+        "updatedAt": "2026-01-13T09:03:45.219Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-01-13T08:35:13.068Z",
-      "taskCount": 13,
-      "completedCount": 13,
+      "lastModified": "2026-01-13T09:03:45.219Z",
+      "taskCount": 16,
+      "completedCount": 16,
       "tags": [
         "master"
       ]

@@ -1,0 +1,21 @@
+{
+  "techStack": {
+    "language": null,
+    "framework": null,
+    "styling": null,
+    "testing": null
+  },
+  "directoryConventions": {
+    "components": null,
+    "hooks": null,
+    "services": null,
+    "utils": null
+  },
+  "existingComponents": [],
+  "codeStyle": {
+    "naming": null,
+    "indentation": null,
+    "quotes": null
+  },
+  "analyzedAt": null
+}
