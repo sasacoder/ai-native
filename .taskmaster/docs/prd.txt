@@ -1,0 +1,704 @@
+# Doc-Copilot Plugin 微型设计说明书 v1.6.0
+
+> 版本: v1.6.0
+> 创建时间: 2026-01-04
+> 更新时间: 2026-01-07
+> 标签: #claude-plugin #doc-copilot #micro-design
+
+---
+
+## 1. 介绍
+
+### 1.1 目的
+
+本文档描述 **Doc-Copilot Plugin** 的详细设计，该插件是 Claude Code 的扩展组件，用于实现 AI 协作文档编写框架。
+
+**开发目标**：
+- 将 Doc-Copilot 框架实现为独立的 Claude Code Plugin
+- 提供可复用、可分发、可扩展的文档协作能力
+- 支持按模版与 AI 交互式完成各类研发文档
+
+**预期收益**：
+- 统一的文档编写工作流
+- 跨项目复用的模版系统
+- 持久化的编写进度管理
+- 可扩展的知识获取机制
+
+### 1.2 术语与缩写
+
+| 术语          | 说明                                           |
+| ----------- | -------------------------------------------- |
+| Doc-Copilot | AI 协作文档编写框架                                  |
+| MCP         | Model Context Protocol，Claude 的工具扩展协议        |
+| Skill       | Claude Code 技能组件，用于流程编排                      |
+| Agent       | Claude Code 自主执行代理，用于复杂任务                    |
+| Plugin      | Claude Code 插件，包含 Commands/Skills/Agents/MCP |
+| 知识源         | 文档编写所需的上下文信息来源                               |
+| 头脑风暴        | 人机交互确定内容方案的协作阶段                              |
+
+### 1.3 参考文档
+
+| 文档 | 说明 |
+|------|------|
+| Doc-Copilot框架设计 | 框架整体设计和流程定义 |
+| Doc-Copilot Plugin设计 | Plugin 架构和组件设计 |
+| 架构设计任务流程设计 | 原始需求和决策记录 |
+| Claude Code Plugin 开发规范 | 官方插件开发指南 |
+
+---
+
+## 2. 模块方案概述
+
+### 2.1 实现原理
+
+Doc-Copilot Plugin 基于 Claude Code Plugin 体系构建，利用其提供的扩展机制实现完整的文档协作能力：
+
+**架构图**：
+- Claude Code 核心：Plugin 加载器 | 执行引擎 | MCP 通信层
+- Doc-Copilot Plugin：Command (入口触发) | Skill(brainstorming) | MCP Server (专用工具)
+
+**核心原理**：
+- **Command** 作为用户入口触发器，解析参数并分发任务
+- **Skill** 复用内置 brainstorming skill，通过定制 prompt 控制章节编写流程
+- **MCP Server** 提供专用工具能力（模版、状态）
+
+### 2.2 实现方案
+
+**方案选型**：Command + Skill(brainstorming) + MCP
+
+选择此方案的原因：
+1. Command 提供简洁的用户入口，参数分发和状态查询
+2. 复用内置 brainstorming skill 进行章节讨论
+3. MCP Server 封装可复用的工具函数
+
+**核心组件**：
+
+| 组件                  | 类型        | 职责                         |
+| ------------------- | --------- | -------------------------- |
+| `/doc-copilot`      | Command   | 入口命令，调用 brainstorming 编写章节 |
+| `/doc-copilot-save` | Command   | 保存章节，触发下一步流程               |
+| `brainstorming`     | Skill(内置) | 章节讨论（大纲→内容），传入定制 prompt    |
+| MCP Server          | Server    | 模版/状态工具集                   |
+
+**模版系统**：
+- YAML 配置格式，易于编写和维护
+- 内置常用研发文档模版
+- 支持用户自定义模版扩展
+
+### 2.3 交互流程
+
+> **核心理念**：Command 驱动，职责分离，人决定保存时机
+>
+> - `/doc-copilot`：流程控制入口（查看状态、进入章节）
+> - `/doc-copilot-save`：保存章节内容 + 触发下一步
+
+**设计原则**：
+- **职责分离**：`/doc-copilot` 负责流程控制，`/doc-copilot-save` 负责保存触发
+- **人决定保存**：用户输入 `/doc-copilot-save` 时才保存进度
+- **章节为单元**：一个章节 = 头脑风暴 → 大纲 → 内容，完整流程
+- **可重入**：任何时候 `/doc-copilot` 都能查看状态或继续
+
+#### 2.3.1 命令概览
+
+| 命令 | 职责 |
+|------|------|
+| `/doc-copilot` | 进入/继续流程（状态判断 → 选择章节 → 进入编写） |
+| `/doc-copilot-save` | 保存当前章节 + 触发下一步流程 |
+| `/doc-copilot list` | 列出所有可用模版 |
+| `/doc-copilot status` | 查看当前进度 |
+
+#### 2.3.2 总体流程
+
+1. `/doc-copilot` → load_state
+2. 状态判断：
+   - 无进度/全部完成 → 选择模版 → brainstorming skill
+   - 有进行中章节 → 继续/回退 → brainstorming skill
+3. 章节编写中...
+4. `/doc-copilot-save` → 提取内容 + save_state
+5. 用户选择：继续完善本章 / 本章完成
+6. 有下一章 → brainstorming skill / 无 → 文档已完成
+
+---
+
+## 3. 模块详细设计
+
+### 3.1 目录结构
+
+```
+ai-native/                             # 主仓库
+├── README.md
+├── LICENSE
+│
+└── doc-copilot/                       # 文档协作插件模块
+    ├── .claude-plugin/
+    │   └── plugin.json                # Plugin 元数据
+    │
+    ├── .mcp.json                      # MCP Server 配置
+    │
+    ├── commands/
+    │   ├── doc-copilot.md             # /doc-copilot 入口命令
+    │   └── doc-copilot-save.md        # /doc-copilot-save 保存命令
+    │
+    ├── mcp-server/                    # MCP Server 实现
+    │   ├── package.json
+    │   ├── tsconfig.json
+    │   ├── src/
+    │   │   ├── index.ts               # 入口
+    │   │   └── tools/
+    │   │       ├── template.ts        # 模版工具（list_templates, load_template）
+    │   │       └── state.ts           # 状态工具（save_state, load_state）
+    │   └── dist/                      # 编译产物（npm run bundle 生成）
+    │       └── index.js
+    │
+    ├── templates/                     # 内置模版
+    │   ├── system-requirements.yaml
+    │   └── micro-design.yaml
+    │
+    └── README.md
+
+# 用户项目目录（运行时生成）
+user-project/
+└── .ai-native/                        # ai-native 统一目录
+    └── doc-copilot/
+        ├── state.yaml                 # 进度状态文件
+        ├── templates/                 # 用户自定义模版（可选）
+        │   └── *.yaml
+        └── *.md                       # 输出的文档文件（如 micro-design.md）
+```
+
+### 3.2 构建与部署
+
+> 采用**单文件打包**策略：使用 esbuild 将依赖打包进 `dist/index.js`，用户无需 `npm install`
+
+#### 3.2.1 用户安装（一键完成）
+
+```bash
+claude plugins install github:sasacoder/ai-native/doc-copilot
+```
+
+安装后即可使用，无需额外步骤。
+
+#### 3.2.2 安装验证
+
+```bash
+# 列出可用模版，验证插件是否正常工作
+/doc-copilot list
+```
+
+预期输出：
+```
+可用模版：
+  • micro-design - 微型设计说明书 (5 章节)
+  • system-requirements - 系统需求规格说明书 (8 章节)
+```
+
+#### 3.2.3 开发者构建流程
+
+```bash
+# 克隆仓库
+git clone https://github.com/sasacoder/ai-native.git
+cd ai-native/doc-copilot/mcp-server
+
+# 安装依赖
+npm install
+
+# 开发模式（监听文件变化，自动编译）
+npm run dev
+
+# 本地测试（编译后需配合 node_modules 运行）
+npm run build
+```
+
+#### 3.2.4 开发者发布流程
+
+```bash
+# 1. 打包成单文件（含所有依赖，用户无需 npm install）
+npm run bundle
+
+# 2. 提交打包产物
+git add dist/
+git commit -m "build: update dist"
+
+# 3. 推送发布
+git push
+```
+
+### 3.3 Plugin 元数据
+
+**plugin.json**：
+
+```json
+{
+  "name": "doc-copilot",
+  "description": "AI 协作文档编写框架 - 按模版与 AI 交互式完成研发文档",
+  "version": "1.0.0",
+  "author": {
+    "name": "sasacoder",
+    "url": "https://github.com/sasacoder"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sasacoder/ai-native",
+    "directory": "doc-copilot"
+  },
+  "license": "MIT",
+  "keywords": ["documentation", "ai-collaboration", "templates", "ai-native"]
+}
+```
+
+**.mcp.json**：
+
+```json
+{
+  "mcpServers": {
+    "doc-copilot": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"],
+      "env": {
+        "TEMPLATES_DIR": "./templates",
+        "STATE_DIR": ".ai-native/doc-copilot",
+        "STATE_FILE": "state.yaml"
+      }
+    }
+  }
+}
+```
+
+### 3.4 Command 设计
+
+#### 3.4.1 /doc-copilot 命令
+
+**commands/doc-copilot.md**：
+
+```markdown
+---
+description: AI 协作文档编写 - 按模版交互式完成研发文档
+argument-hint: [status|list]
+allowed-tools: Skill, mcp__doc-copilot__list_templates, mcp__doc-copilot__load_template, mcp__doc-copilot__load_state, mcp__doc-copilot__save_state
+---
+
+# Doc-Copilot 命令
+
+入口命令，根据 `$ARGUMENTS` 参数分发到不同处理分支。
+
+## 分支1：`$ARGUMENTS` = "list"
+
+调用 `list_templates`，显示可用模版列表后结束。
+
+## 分支2：`$ARGUMENTS` = "status"
+
+调用 `load_state`：
+- 有进度：显示当前模版、章节完成情况、上次编辑时间
+- 无进度：提示"暂无进行中的文档任务"
+
+## 分支3：无参数（主流程）
+
+1. 调用 `load_state` 检查状态
+2. 状态判断：
+   - **无进度/全部完成**：`list_templates` → 用户选择模版 → `load_template` → `save_state` 初始化
+   - **有进行中章节**：`load_template(state.template_id)` → 询问用户「继续」或「回退」
+3. 构造定制 prompt（从模版和状态组装）
+4. 调用 `brainstorming` skill，定制 prompt 作为对话上下文传递
+```
+
+#### 3.4.2 /doc-copilot 测试用例
+
+| 用例 | 输入 | 场景 | 预期结果 |
+|------|------|------|----------|
+| TC-1 | `/doc-copilot` | 主流程入口（无进度） | 选择模版 → 初始化 → brainstorming |
+| TC-1b | `/doc-copilot` | 主流程入口（有进度，继续） | 确认继续 → brainstorming |
+| TC-1c | `/doc-copilot` | 主流程入口（有进度，回退） | 选择目标章节 → 重置 → brainstorming |
+| TC-2 | `/doc-copilot list` | 列出模版 | 显示所有可用模版 |
+| TC-3 | `/doc-copilot status` | 查看进度（有） | 显示进度详情 |
+| TC-4 | `/doc-copilot status` | 查看进度（无） | 提示无任务 |
+
+#### 3.4.3 /doc-copilot-save 命令
+
+**commands/doc-copilot-save.md**：
+
+```markdown
+---
+description: 保存当前章节并触发下一步流程
+allowed-tools: Skill, mcp__doc-copilot__load_state, mcp__doc-copilot__load_template, mcp__doc-copilot__save_state
+---
+
+# Doc-Copilot Save 命令
+
+保存当前章节内容，并触发下一步流程。
+
+## 执行流程
+
+1. 调用 `load_state` 确认当前章节
+2. 从当前对话上下文提取章节内容
+3. 展示选项：「继续完善本章」或「本章完成」
+4. 根据用户选择执行保存和后续流程
+```
+
+#### 3.4.4 /doc-copilot-save 测试用例
+
+| 用例 | 输入 | 场景 | 预期结果 |
+|------|------|------|----------|
+| TC-S1 | `/doc-copilot-save` | 继续完善本章 | save_state + 渲染 → brainstorming |
+| TC-S2 | `/doc-copilot-save` | 本章完成（有下一章） | save_state + done + 渲染 → brainstorming 下一章 |
+| TC-S3 | `/doc-copilot-save` | 本章完成（最后一章） | save_state + done + 渲染 → 文档完成 |
+
+### 3.5 Skill 设计
+
+> **v1.5.0 变更**：不再自定义 Skill，直接复用内置 `brainstorming` skill
+
+**设计决策**：
+
+| 方案 | 说明 | 问题 |
+|------|------|------|
+| 自定义 doc-chapter skill | 封装章节编写流程 | 需要嵌套调用 brainstorming，可能搞乱 |
+| **直接复用 brainstorming** | 传入定制 prompt 控制流程 | 无嵌套，流程清晰 |
+
+**依赖**：
+
+| Skill | 来源 | 用途 |
+|-------|------|------|
+| brainstorming | 内置 / superpowers 插件 | 章节讨论式编写 |
+
+### 3.6 MCP Server 设计
+
+**mcp-server/package.json**：
+
+```json
+{
+  "name": "doc-copilot-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "bundle": "esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "yaml": "^2.0.0",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.20.0"
+  }
+}
+```
+
+**工具清单**：
+
+| 工具 | 参数 | 返回值 | 功能 |
+|------|------|--------|------|
+| `list_templates` | project_path | 模版列表 | 列出所有可用模版（内置 + 用户） |
+| `load_template` | template_id, project_path | 模版配置 | 加载指定模版（本地优先） |
+| `save_state` | project_path, state, render? | 成功/失败 + 文件路径 | 保存进度状态，可选渲染文档 |
+| `load_state` | project_path | 状态数据 | 加载进度状态 |
+
+**入口文件 (src/index.ts)**：
+
+```typescript
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { listTemplates, loadTemplate } from "./tools/template.js";
+import { saveState, loadState } from "./tools/state.js";
+
+const server = new McpServer({
+  name: "doc-copilot",
+  version: "1.0.0"
+});
+
+// 注册工具
+[listTemplates, loadTemplate, saveState, loadState].forEach(tool => {
+  server.tool(
+    tool.name,
+    tool.description,
+    tool.parameters.shape,
+    tool.execute
+  );
+});
+
+// 启动服务
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+**模版工具 (src/tools/template.ts)**：
+
+```typescript
+import { z } from "zod";
+import * as yaml from "yaml";
+import * as fs from "fs/promises";
+import * as path from "path";
+
+const BUILTIN_TEMPLATES_DIR = process.env.TEMPLATES_DIR || "./templates";
+const USER_TEMPLATES_SUBDIR = ".ai-native/doc-copilot/templates";
+
+export const listTemplates = {
+  name: "list_templates",
+  description: "列出所有可用的文档模版（内置 + 用户）",
+  parameters: z.object({
+    project_path: z.string().describe("项目目录路径")
+  }),
+  async execute({ project_path }) {
+    const templates = new Map();
+
+    // 1. 先加载内置模版
+    const builtinFiles = await fs.readdir(BUILTIN_TEMPLATES_DIR).catch(() => []);
+    for (const file of builtinFiles) {
+      if (file.endsWith(".yaml")) {
+        const content = await fs.readFile(
+          path.join(BUILTIN_TEMPLATES_DIR, file), "utf-8"
+        );
+        const config = yaml.parse(content);
+        templates.set(config.id, {
+          id: config.id,
+          name: config.name,
+          description: config.description,
+          chapters_count: config.chapters.length,
+          source: "builtin"
+        });
+      }
+    }
+
+    // 2. 再加载用户模版（覆盖同名内置模版）
+    const userTemplatesDir = path.join(project_path, USER_TEMPLATES_SUBDIR);
+    const userFiles = await fs.readdir(userTemplatesDir).catch(() => []);
+    for (const file of userFiles) {
+      if (file.endsWith(".yaml")) {
+        const content = await fs.readFile(
+          path.join(userTemplatesDir, file), "utf-8"
+        );
+        const config = yaml.parse(content);
+        templates.set(config.id, {
+          id: config.id,
+          name: config.name,
+          description: config.description,
+          chapters_count: config.chapters.length,
+          source: "user"
+        });
+      }
+    }
+
+    return Array.from(templates.values());
+  }
+};
+
+export const loadTemplate = {
+  name: "load_template",
+  description: "加载指定模版的完整配置（本地优先）",
+  parameters: z.object({
+    template_id: z.string().describe("模版 ID"),
+    project_path: z.string().describe("项目目录路径")
+  }),
+  async execute({ template_id, project_path }) {
+    // 1. 先尝试用户模版
+    const userPath = path.join(
+      project_path, USER_TEMPLATES_SUBDIR, `${template_id}.yaml`
+    );
+    try {
+      const content = await fs.readFile(userPath, "utf-8");
+      return yaml.parse(content);
+    } catch {}
+
+    // 2. 回退到内置模版
+    const builtinPath = path.join(BUILTIN_TEMPLATES_DIR, `${template_id}.yaml`);
+    const content = await fs.readFile(builtinPath, "utf-8");
+    return yaml.parse(content);
+  }
+};
+```
+
+**状态管理 (src/tools/state.ts)**：
+
+```typescript
+import { z } from "zod";
+import * as yaml from "yaml";
+import * as fs from "fs/promises";
+import * as path from "path";
+
+const STATE_DIR = process.env.STATE_DIR || ".ai-native/doc-copilot";
+const STATE_FILE = process.env.STATE_FILE || "state.yaml";
+
+export const saveState = {
+  name: "save_state",
+  description: "保存文档编写进度状态，可选渲染文档",
+  parameters: z.object({
+    project_path: z.string(),
+    state: z.object({
+      template_id: z.string(),
+      output: z.string(),
+      chapters: z.array(z.object({
+        name: z.string(),
+        status: z.enum(["pending", "in_progress", "done"]),
+        phase: z.enum(["brainstorming", "outlining", "writing"]).optional(),
+        outline_confirmed: z.boolean().optional(),
+        content: z.string().optional()
+      }))
+    }),
+    render: z.boolean().optional().describe("是否同步渲染文档")
+  }),
+  async execute({ project_path, state, render }) {
+    const stateDir = path.join(project_path, STATE_DIR);
+    const statePath = path.join(stateDir, STATE_FILE);
+
+    await fs.mkdir(stateDir, { recursive: true });
+
+    const content = yaml.stringify({
+      ...state,
+      updated_at: new Date().toISOString()
+    });
+    await fs.writeFile(statePath, content);
+
+    let outputPath = null;
+    if (render) {
+      outputPath = path.join(project_path, state.output);
+      const doc = state.chapters
+        .filter(ch => ch.content)
+        .map(ch => `## ${ch.name}\n\n${ch.content}`)
+        .join("\n\n---\n\n");
+      await fs.writeFile(outputPath, doc);
+    }
+
+    return { success: true, statePath, outputPath };
+  }
+};
+
+export const loadState = {
+  name: "load_state",
+  description: "加载文档编写进度状态",
+  parameters: z.object({
+    project_path: z.string()
+  }),
+  async execute({ project_path }) {
+    const statePath = path.join(project_path, STATE_DIR, STATE_FILE);
+    try {
+      const content = await fs.readFile(statePath, "utf-8");
+      return { exists: true, state: yaml.parse(content) };
+    } catch {
+      return { exists: false, state: null };
+    }
+  }
+};
+```
+
+### 3.7 模版配置规范
+
+**YAML 结构定义**：
+
+```yaml
+name: 模版名称                    # 必需
+id: template-id                  # 必需，唯一标识
+description: 模版描述             # 必需
+source: 原始模版路径              # 可选，引用来源
+output: 默认输出路径              # 必需
+
+chapters:                        # 章节列表
+  - name: 章节名称               # 必需
+    prompt: 编写提示              # 必需，指导 AI 如何编写
+    knowledge_sources:           # 知识源配置（用于预加载和提示）
+      - type: user_input
+        questions: [...]
+      - type: codebase
+        scan: [...]
+      - type: docs
+        paths: [...]
+    depends_on: [前置章节]        # 依赖关系
+```
+
+**知识源类型**：
+
+| 类型 | 参数 | 说明 | 触发时机 |
+|------|------|------|----------|
+| user_input | questions | 向用户提问的问题列表 | 头脑风暴开始时 |
+| codebase | scan | 要扫描的代码路径 | 按需触发 |
+| docs | paths | 要读取的文档路径 | 按需触发 |
+| web_search | query | 搜索关键词 | 按需触发 |
+| context7 | query | 技术文档查询 | 按需触发 |
+| memory | tags | 记忆标签过滤 | 按需触发 |
+
+### 3.8 验证点
+
+| 验证类型 | 验证内容 | 验证方法 |
+|----------|----------|----------|
+| 单元测试 | MCP 工具函数正确性 | Jest 测试用例 |
+| 单元测试 | 模版解析正确性 | YAML 解析验证 |
+| 集成测试 | 完整工作流 | 端到端流程测试 |
+| 手动验证 | 动态知识获取机制 | 人工执行验证 |
+| 手动验证 | 2 种用户操作响应（继续/回退） | 人工执行验证 |
+| 手动验证 | 模版选择流程 | 人工执行验证 |
+| 手动验证 | 进度恢复和回退 | 人工执行验证 |
+
+---
+
+## 4. 关联分析
+
+### 4.1 外部依赖
+
+**Claude Code 核心能力**：
+
+| 依赖项 | 说明 | 版本要求 |
+|--------|------|----------|
+| Plugin 加载机制 | 加载和注册插件 | Claude Code 1.0+ |
+| Command/Skill/Agent 执行引擎 | 执行各类组件 | Claude Code 1.0+ |
+| MCP 通信协议 | 与 MCP Server 通信 | MCP 1.0+ |
+
+**内置 Skill 依赖**：
+
+| Skill | 用途 | 必需 |
+|-------|------|------|
+| brainstorming | 头脑风暴阶段 | 是 |
+
+**外部工具依赖**：
+
+| 工具 | 用途 | 版本 |
+|------|------|------|
+| Node.js | 运行 MCP Server | 18+ |
+| yaml (npm) | YAML 解析 | 2.x |
+| zod (npm) | 参数校验 | 3.x |
+
+### 4.2 与现有系统的交互
+
+**文件系统交互**：
+
+| 操作 | 路径 | 说明 |
+|------|------|------|
+| 读取 | `{插件目录}/templates/*.yaml` | 内置模版 |
+| 读取 | `{项目}/.ai-native/doc-copilot/templates/*.yaml` | 用户模版 |
+| 读取 | 项目代码和文档 | 知识获取 |
+| 写入 | `{项目}/.ai-native/doc-copilot/state.yaml` | 进度状态 |
+| 写入 | `{项目}/.ai-native/doc-copilot/*.md` | 输出文档 |
+
+### 4.3 对已有工作流的影响
+
+- **无破坏性变更**：作为独立 Plugin 运行
+- **不修改 Claude Code 核心**：仅使用公开扩展接口
+- **用户可选**：可选择性安装和启用
+- **隔离运行**：Plugin 间相互独立
+
+---
+
+## 5. 变更控制
+
+### 5.1 版本历史
+
+| 版本     | 日期         | 说明                                                                  |
+| ------ | ---------- | ------------------------------------------------------------------- |
+| v1.0.0 | 2026-01-04 | 初始版本                                                                |
+| v1.1.0 | 2026-01-04 | 增强流程图，体现人机协作动态性                                  |
+| v1.2.0 | 2026-01-06 | 状态驱动架构：合并为单一 Skill                                 |
+| v1.3.0 | 2026-01-06 | Command 驱动架构：职责分离  |
+| v1.4.0 | 2026-01-06 | 恢复 Skill 层：创建 doc-chapter skill         |
+| v1.5.0 | 2026-01-06 | 复用 brainstorming：去掉自定义 Skill |
+| v1.6.0 | 2026-01-07 | 扩展设计移至独立草稿文档                                               |
+
+### 5.2 待定事项
+
+| 事项 | 状态 | 备注 |
+|------|------|------|
+| 模版市场 | 草稿 | 见扩展设计文档 |
+| 多语言支持 | 草稿 | 见扩展设计文档 |
+| 协作模式 | 草稿 | 见扩展设计文档 |
+| 版本控制集成 | 草稿 | 见扩展设计文档 |

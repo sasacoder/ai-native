@@ -1,0 +1,75 @@
+name: 系统需求规格说明书
+id: system-requirements
+description: 适用于完整系统的需求分析文档
+output: .ai-native/doc-copilot/system-requirements.md
+
+chapters:
+  - name: 引言
+    prompt: |
+      编写文档引言，包含：
+      1. 编写目的
+      2. 项目背景
+      3. 定义与缩略语
+      4. 参考资料
+    knowledge_sources:
+      - type: user_input
+        questions:
+          - 这个系统要解决什么业务问题？
+          - 目标用户是谁？
+
+  - name: 任务概述
+    prompt: |
+      描述系统任务概述，包含：
+      1. 目标
+      2. 运行环境
+      3. 条件与限制
+    depends_on: [引言]
+
+  - name: 数据描述
+    prompt: |
+      描述系统数据，包含：
+      1. 静态数据
+      2. 动态数据
+      3. 数据库介绍
+      4. 数据字典
+    depends_on: [任务概述]
+
+  - name: 功能需求
+    prompt: |
+      描述系统功能需求，包含：
+      1. 功能划分
+      2. 功能描述
+    depends_on: [数据描述]
+
+  - name: 性能需求
+    prompt: |
+      描述系统性能需求，包含：
+      1. 数据精确度
+      2. 时间特性
+      3. 适应性
+    depends_on: [功能需求]
+
+  - name: 运行需求
+    prompt: |
+      描述系统运行需求，包含：
+      1. 用户界面
+      2. 硬件接口
+      3. 软件接口
+      4. 故障处理
+    depends_on: [性能需求]
+
+  - name: 其他需求
+    prompt: |
+      描述其他需求，包含：
+      1. 安全性
+      2. 可维护性
+      3. 可移植性
+    depends_on: [运行需求]
+
+  - name: 附录
+    prompt: |
+      编写附录内容，包含：
+      1. 需求追溯矩阵
+      2. 术语表
+      3. 待定问题列表
+    depends_on: [其他需求]

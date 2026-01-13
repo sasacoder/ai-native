@@ -1,0 +1,50 @@
+name: 微型设计说明书
+id: micro-design
+description: 适用于小型功能模块的设计文档
+output: .ai-native/doc-copilot/micro-design.md
+
+chapters:
+  - name: 介绍
+    prompt: |
+      编写模块介绍章节，包含：
+      1. 目的和背景
+      2. 术语定义
+      3. 参考文档
+    knowledge_sources:
+      - type: user_input
+        questions:
+          - 这个模块要解决什么问题？
+          - 有哪些关键术语需要定义？
+
+  - name: 模块方案概述
+    prompt: |
+      描述整体实现方案，包含：
+      1. 实现原理
+      2. 方案选型和理由
+      3. 核心组件和职责
+    depends_on: [介绍]
+
+  - name: 详细设计
+    prompt: |
+      详细描述各组件设计，包含：
+      1. 目录结构
+      2. 接口设计
+      3. 数据结构
+      4. 核心算法
+    depends_on: [模块方案概述]
+
+  - name: 关联分析
+    prompt: |
+      分析与其他模块的关系，包含：
+      1. 外部依赖
+      2. 被依赖情况
+      3. 接口契约
+    depends_on: [详细设计]
+
+  - name: 变更控制
+    prompt: |
+      记录文档变更历史，包含：
+      1. 版本号
+      2. 变更日期
+      3. 变更说明
+    depends_on: [关联分析]

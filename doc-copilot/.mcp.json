@@ -1,0 +1,11 @@
+{
+  "doc-copilot": {
+    "type": "stdio",
+    "command": "./start-mcp.sh",
+    "env": {
+      "TEMPLATES_DIR": "./templates",
+      "STATE_DIR": ".ai-native/doc-copilot",
+      "STATE_FILE": "state.yaml"
+    }
+  }
+}

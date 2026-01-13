@@ -1,0 +1,157 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "初始化 Plugin 目录结构",
+        "description": "创建 doc-copilot 插件的完整目录结构，包括 .claude-plugin/、commands/、mcp-server/、templates/ 等目录，以及配置文件。",
+        "details": "## 实现步骤\n\n1. 在 ai-native 根目录下创建 doc-copilot/ 目录\n\n2. 创建核心目录结构：\n```\ndoc-copilot/\n├── .claude-plugin/\n│   └── plugin.json\n├── .mcp.json\n├── commands/\n├── mcp-server/\n│   ├── src/\n│   │   └── tools/\n│   └── dist/\n├── templates/\n└── README.md\n```\n\n3. 创建 plugin.json：\n```json\n{\n  \"name\": \"doc-copilot\",\n  \"description\": \"AI 协作文档编写框架 - 按模版与 AI 交互式完成研发文档\",\n  \"version\": \"1.0.0\",\n  \"author\": {\n    \"name\": \"sasacoder\",\n    \"url\": \"https://github.com/sasacoder\"\n  },\n  \"repository\": {\n    \"type\": \"git\",\n    \"url\": \"https://github.com/sasacoder/ai-native\",\n    \"directory\": \"doc-copilot\"\n  },\n  \"license\": \"MIT\",\n  \"keywords\": [\"documentation\", \"ai-collaboration\", \"templates\", \"ai-native\"]\n}\n```\n\n4. 创建 .mcp.json：\n```json\n{\n  \"mcpServers\": {\n    \"doc-copilot\": {\n      \"type\": \"stdio\",\n      \"command\": \"node\",\n      \"args\": [\"./mcp-server/dist/index.js\"],\n      \"env\": {\n        \"TEMPLATES_DIR\": \"./templates\",\n        \"STATE_DIR\": \".ai-native/doc-copilot\",\n        \"STATE_FILE\": \"state.yaml\"\n      }\n    }\n  }\n}\n```\n\n5. 创建 README.md 基本说明",
+        "testStrategy": "验证所有目录和文件已正确创建；验证 plugin.json 和 .mcp.json 是有效的 JSON 格式；运行 `tree doc-copilot` 确认目录结构正确。",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-11T16:14:24.121Z"
+      },
+      {
+        "id": "2",
+        "title": "初始化 MCP Server 项目",
+        "description": "创建 MCP Server 的 Node.js 项目，配置 TypeScript、esbuild 构建脚本，安装依赖包。",
+        "details": "## 实现步骤\n\n1. 在 mcp-server/ 下创建 package.json：\n```json\n{\n  \"name\": \"doc-copilot-mcp\",\n  \"version\": \"1.0.0\",\n  \"type\": \"module\",\n  \"main\": \"dist/index.js\",\n  \"scripts\": {\n    \"build\": \"tsc\",\n    \"bundle\": \"esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@modelcontextprotocol/sdk\",\n    \"dev\": \"tsc --watch\"\n  },\n  \"dependencies\": {\n    \"@modelcontextprotocol/sdk\": \"^1.0.0\",\n    \"yaml\": \"^2.0.0\",\n    \"zod\": \"^3.0.0\"\n  },\n  \"devDependencies\": {\n    \"typescript\": \"^5.0.0\",\n    \"@types/node\": \"^20.0.0\",\n    \"esbuild\": \"^0.20.0\"\n  }\n}\n```\n\n2. 创建 tsconfig.json：\n```json\n{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"module\": \"NodeNext\",\n    \"moduleResolution\": \"NodeNext\",\n    \"outDir\": \"./dist\",\n    \"rootDir\": \"./src\",\n    \"strict\": true,\n    \"esModuleInterop\": true,\n    \"skipLibCheck\": true,\n    \"forceConsistentCasingInFileNames\": true,\n    \"declaration\": true\n  },\n  \"include\": [\"src/**/*\"],\n  \"exclude\": [\"node_modules\", \"dist\"]\n}\n```\n\n3. 运行 `npm install` 安装依赖\n\n4. 创建 src/index.ts 入口文件骨架",
+        "testStrategy": "运行 `npm install` 确保依赖安装成功；运行 `npm run build` 确保 TypeScript 编译正常；检查 tsconfig.json 配置是否正确。",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-11T16:16:29.780Z"
+      },
+      {
+        "id": "3",
+        "title": "实现模版工具 (template.ts)",
+        "description": "实现 MCP Server 的模版相关工具函数：list_templates 和 load_template，支持内置模版和用户自定义模版。",
+        "details": "## 实现步骤\n\n1. 创建 src/tools/template.ts 文件\n\n2. 实现 listTemplates 工具：\n```typescript\nimport { z } from \"zod\";\nimport * as yaml from \"yaml\";\nimport * as fs from \"fs/promises\";\nimport * as path from \"path\";\n\nconst BUILTIN_TEMPLATES_DIR = process.env.TEMPLATES_DIR || \"./templates\";\nconst USER_TEMPLATES_SUBDIR = \".ai-native/doc-copilot/templates\";\n\nexport const listTemplates = {\n  name: \"list_templates\",\n  description: \"列出所有可用的文档模版（内置 + 用户）\",\n  parameters: z.object({\n    project_path: z.string().describe(\"项目目录路径\")\n  }),\n  async execute({ project_path }: { project_path: string }) {\n    const templates = new Map();\n    \n    // 1. 加载内置模版\n    const builtinFiles = await fs.readdir(BUILTIN_TEMPLATES_DIR).catch(() => []);\n    for (const file of builtinFiles) {\n      if (file.endsWith(\".yaml\")) {\n        const content = await fs.readFile(\n          path.join(BUILTIN_TEMPLATES_DIR, file), \"utf-8\"\n        );\n        const config = yaml.parse(content);\n        templates.set(config.id, {\n          id: config.id,\n          name: config.name,\n          description: config.description,\n          chapters_count: config.chapters.length,\n          source: \"builtin\"\n        });\n      }\n    }\n    \n    // 2. 加载用户模版（覆盖同名）\n    const userTemplatesDir = path.join(project_path, USER_TEMPLATES_SUBDIR);\n    const userFiles = await fs.readdir(userTemplatesDir).catch(() => []);\n    for (const file of userFiles) {\n      if (file.endsWith(\".yaml\")) {\n        const content = await fs.readFile(\n          path.join(userTemplatesDir, file), \"utf-8\"\n        );\n        const config = yaml.parse(content);\n        templates.set(config.id, {\n          id: config.id,\n          name: config.name,\n          description: config.description,\n          chapters_count: config.chapters.length,\n          source: \"user\"\n        });\n      }\n    }\n    \n    return Array.from(templates.values());\n  }\n};\n```\n\n3. 实现 loadTemplate 工具（本地优先策略）\n\n4. 导出所有工具",
+        "testStrategy": "创建测试模版文件验证 list_templates 能正确读取；测试用户模版覆盖内置模版的逻辑；测试 load_template 的本地优先策略；验证无模版时返回空数组而非报错。",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-11T16:17:18.215Z"
+      },
+      {
+        "id": "4",
+        "title": "实现状态管理工具 (state.ts)",
+        "description": "实现 MCP Server 的状态管理工具函数：save_state 和 load_state，支持进度持久化和文档渲染。",
+        "details": "## 实现步骤\n\n1. 创建 src/tools/state.ts 文件\n\n2. 定义状态数据结构 Schema：\n```typescript\nconst ChapterSchema = z.object({\n  name: z.string(),\n  status: z.enum([\"pending\", \"in_progress\", \"done\"]),\n  phase: z.enum([\"brainstorming\", \"outlining\", \"writing\"]).optional(),\n  outline_confirmed: z.boolean().optional(),\n  content: z.string().optional()\n});\n\nconst StateSchema = z.object({\n  template_id: z.string(),\n  output: z.string(),\n  chapters: z.array(ChapterSchema)\n});\n```\n\n3. 实现 saveState 工具：\n- 保存状态到 .ai-native/doc-copilot/state.yaml\n- 自动添加 updated_at 时间戳\n- 可选 render 参数触发文档渲染\n- 文档渲染时合并所有已完成章节内容\n\n4. 实现 loadState 工具：\n- 读取状态文件\n- 返回 { exists: boolean, state: object | null }\n\n5. 导出所有工具",
+        "testStrategy": "测试 save_state 能正确创建目录和写入 YAML 文件；测试 load_state 能正确读取状态；测试无状态时返回 { exists: false, state: null }；测试 render=true 时能正确生成 Markdown 文档。",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-11T16:17:18.216Z"
+      },
+      {
+        "id": "5",
+        "title": "实现 MCP Server 入口 (index.ts)",
+        "description": "创建 MCP Server 入口文件，注册所有工具并启动 STDIO 传输服务。",
+        "details": "## 实现步骤\n\n1. 创建 src/index.ts 入口文件：\n```typescript\nimport { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport { StdioServerTransport } from \"@modelcontextprotocol/sdk/server/stdio.js\";\nimport { listTemplates, loadTemplate } from \"./tools/template.js\";\nimport { saveState, loadState } from \"./tools/state.js\";\n\nconst server = new McpServer({\n  name: \"doc-copilot\",\n  version: \"1.0.0\"\n});\n\n// 注册工具\nconst tools = [listTemplates, loadTemplate, saveState, loadState];\n\ntools.forEach(tool => {\n  server.tool(\n    tool.name,\n    tool.description,\n    tool.parameters.shape,\n    tool.execute\n  );\n});\n\n// 启动服务\nconst transport = new StdioServerTransport();\nawait server.connect(transport);\n\nconsole.error(\"Doc-Copilot MCP Server started\");\n```\n\n2. 运行 `npm run build` 编译\n\n3. 运行 `npm run bundle` 打包单文件\n\n4. 测试 MCP Server 是否能正常启动",
+        "testStrategy": "运行 `npm run build` 确保编译成功；运行 `npm run bundle` 确保打包成功；手动运行 `node dist/index.js` 验证服务启动不报错；使用 MCP 客户端测试工具调用。",
+        "priority": "high",
+        "dependencies": [
+          "3",
+          "4"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-11T16:19:00.070Z"
+      },
+      {
+        "id": "6",
+        "title": "创建内置文档模版",
+        "description": "创建两个内置 YAML 模版：micro-design（微型设计说明书）和 system-requirements（系统需求规格说明书）。",
+        "details": "## 实现步骤\n\n1. 创建 templates/micro-design.yaml：\n```yaml\nname: 微型设计说明书\nid: micro-design\ndescription: 适用于小型功能模块的设计文档\noutput: .ai-native/doc-copilot/micro-design.md\n\nchapters:\n  - name: 介绍\n    prompt: |\n      编写模块介绍章节，包含：\n      1. 目的和背景\n      2. 术语定义\n      3. 参考文档\n    knowledge_sources:\n      - type: user_input\n        questions:\n          - 这个模块要解决什么问题？\n          - 有哪些关键术语需要定义？\n\n  - name: 模块方案概述\n    prompt: |\n      描述整体实现方案，包含：\n      1. 实现原理\n      2. 方案选型和理由\n      3. 核心组件和职责\n    depends_on: [介绍]\n\n  - name: 详细设计\n    prompt: |\n      详细描述各组件设计，包含：\n      1. 目录结构\n      2. 接口设计\n      3. 数据结构\n      4. 核心算法\n    depends_on: [模块方案概述]\n\n  - name: 关联分析\n    prompt: |\n      分析与其他模块的关系，包含：\n      1. 外部依赖\n      2. 被依赖情况\n      3. 接口契约\n    depends_on: [详细设计]\n\n  - name: 变更控制\n    prompt: |\n      记录文档变更历史，包含：\n      1. 版本号\n      2. 变更日期\n      3. 变更说明\n    depends_on: [关联分析]\n```\n\n2. 创建 templates/system-requirements.yaml（8个章节）\n\n3. 验证 YAML 语法正确性",
+        "testStrategy": "使用 YAML 解析器验证语法正确；手动调用 list_templates 确认模版被识别；调用 load_template 验证模版内容完整；检查 chapters 结构符合规范。",
+        "priority": "medium",
+        "dependencies": [
+          "1"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-11T16:19:00.072Z"
+      },
+      {
+        "id": "7",
+        "title": "实现 /doc-copilot 命令",
+        "description": "创建主入口命令文件 doc-copilot.md，实现 list、status 子命令和主流程分发逻辑。",
+        "details": "## 实现步骤\n\n1. 创建 commands/doc-copilot.md：\n```markdown\n---\ndescription: AI 协作文档编写 - 按模版交互式完成研发文档\nargument-hint: [status|list]\nallowed-tools: Skill, mcp__doc-copilot__list_templates, mcp__doc-copilot__load_template, mcp__doc-copilot__load_state, mcp__doc-copilot__save_state\n---\n\n# Doc-Copilot 命令\n\n入口命令，根据 `$ARGUMENTS` 参数分发到不同处理分支。\n\n## 分支1：`$ARGUMENTS` = \"list\"\n\n调用 `mcp__doc-copilot__list_templates`，显示可用模版列表后结束。\n\n格式示例：\n```\n可用模版：\n  • micro-design - 微型设计说明书 (5 章节)\n  • system-requirements - 系统需求规格说明书 (8 章节)\n```\n\n## 分支2：`$ARGUMENTS` = \"status\"\n\n调用 `mcp__doc-copilot__load_state`：\n- 有进度：显示当前模版、章节完成情况、上次编辑时间\n- 无进度：提示\"暂无进行中的文档任务\"\n\n## 分支3：无参数（主流程）\n\n1. 调用 `mcp__doc-copilot__load_state` 检查状态\n2. 状态判断：\n   - **无进度/全部完成**：调用 list_templates → 让用户选择模版 → load_template → save_state 初始化\n   - **有进行中章节**：加载模版 → 询问用户「继续」或「回退到某章节」\n3. 确定当前章节后，构造定制 prompt（包含章节提示、知识源配置、已完成内容上下文）\n4. 调用 `brainstorming` skill 传入定制 prompt\n```\n\n2. 确保 frontmatter 格式正确\n\n3. 测试命令响应",
+        "testStrategy": "测试 `/doc-copilot list` 显示模版列表；测试 `/doc-copilot status` 在无进度时提示正确；测试主流程能正确检测状态并分发；验证 allowed-tools 配置正确。",
+        "priority": "high",
+        "dependencies": [
+          "5",
+          "6"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-11T16:19:44.147Z"
+      },
+      {
+        "id": "8",
+        "title": "实现 /doc-copilot-save 命令",
+        "description": "创建保存命令文件 doc-copilot-save.md，实现章节内容提取、保存和下一步流程触发。",
+        "details": "## 实现步骤\n\n1. 创建 commands/doc-copilot-save.md：\n```markdown\n---\ndescription: 保存当前章节并触发下一步流程\nallowed-tools: Skill, mcp__doc-copilot__load_state, mcp__doc-copilot__load_template, mcp__doc-copilot__save_state\n---\n\n# Doc-Copilot Save 命令\n\n保存当前章节内容，并触发下一步流程。\n\n## 执行流程\n\n1. 调用 `mcp__doc-copilot__load_state` 获取当前状态\n2. 如果没有进行中的章节，提示错误并退出\n3. 从当前对话上下文中提取章节内容（包括大纲和正文）\n4. 展示选项让用户选择：\n   - 「继续完善本章」：保存当前内容，继续 brainstorming\n   - 「本章完成」：标记章节 done，进入下一章或完成文档\n5. 调用 `mcp__doc-copilot__save_state` 保存状态，render=true 渲染文档\n6. 根据选择执行后续流程：\n   - 继续完善：调用 brainstorming skill\n   - 下一章：调用 brainstorming skill（下一章 prompt）\n   - 文档完成：显示完成信息和输出路径\n```\n\n2. 实现内容提取逻辑说明\n\n3. 测试保存流程",
+        "testStrategy": "测试无进度时调用命令的错误提示；测试「继续完善」选项的状态保存；测试「本章完成」后进入下一章的流程；测试最后一章完成后的文档生成。",
+        "priority": "high",
+        "dependencies": [
+          "5",
+          "7"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-11T16:19:44.148Z"
+      },
+      {
+        "id": "9",
+        "title": "实现单文件打包和本地测试",
+        "description": "配置 esbuild 单文件打包，确保用户无需 npm install 即可使用，并进行本地集成测试。",
+        "details": "## 实现步骤\n\n1. 更新 package.json 的 bundle 脚本：\n```json\n{\n  \"scripts\": {\n    \"bundle\": \"esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --banner:js='#!/usr/bin/env node'\"\n  }\n}\n```\n\n2. 运行 `npm run bundle` 生成 dist/index.js\n\n3. 验证打包文件大小和完整性\n\n4. 本地测试流程：\n```bash\n# 1. 在测试项目中配置 .mcp.json 指向本地路径\n# 2. 启动 Claude Code\n# 3. 运行 /doc-copilot list\n# 4. 运行 /doc-copilot 选择模版\n# 5. 进行章节编写\n# 6. 运行 /doc-copilot-save\n# 7. 检查生成的文档\n```\n\n5. 修复发现的问题\n\n6. 更新 .gitignore 排除 node_modules 但包含 dist/",
+        "testStrategy": "验证 dist/index.js 文件生成成功；验证打包后可独立运行无依赖报错；完整执行一次文档编写流程验证功能；检查生成的 state.yaml 和 .md 文件格式正确。",
+        "priority": "medium",
+        "dependencies": [
+          "7",
+          "8"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-11T16:20:13.742Z"
+      },
+      {
+        "id": "10",
+        "title": "编写文档和发布准备",
+        "description": "完善 README 文档，包含安装说明、使用示例、模版扩展指南，准备发布到 GitHub。",
+        "details": "## 实现步骤\n\n1. 完善 doc-copilot/README.md：\n```markdown\n# Doc-Copilot Plugin\n\nAI 协作文档编写框架 - 按模版与 AI 交互式完成研发文档\n\n## 安装\n\n```bash\nclaude plugins install github:sasacoder/ai-native/doc-copilot\n```\n\n## 使用\n\n### 开始新文档\n```\n/doc-copilot\n```\n\n### 查看可用模版\n```\n/doc-copilot list\n```\n\n### 查看进度\n```\n/doc-copilot status\n```\n\n### 保存章节\n```\n/doc-copilot-save\n```\n\n## 自定义模版\n\n在项目下创建 `.ai-native/doc-copilot/templates/your-template.yaml`\n\n模版格式参见内置模版...\n\n## 开发者指南\n\n...\n```\n\n2. 更新主仓库 README.md 添加 doc-copilot 介绍\n\n3. 确保 .gitignore 正确配置\n\n4. 创建 LICENSE 文件（MIT）\n\n5. 提交代码并推送到 GitHub",
+        "testStrategy": "检查 README 内容完整性和格式；验证安装命令可执行；按文档步骤验证使用流程；确认 LICENSE 文件存在。",
+        "priority": "low",
+        "dependencies": [
+          "9"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-11T16:20:57.140Z"
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-01-11T16:20:57.140Z",
+      "taskCount": 10,
+      "completedCount": 10,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "doc-copilot",
+  "description": "AI 协作文档编写框架 - 按模版与 AI 交互式完成研发文档",
+  "version": "1.0.0",
+  "author": {
+    "name": "sasacoder",
+    "url": "https://github.com/sasacoder"
+  },
+  "repository": "https://github.com/sasacoder/ai-native/tree/main/doc-copilot",
+  "license": "MIT",
+  "keywords": ["documentation", "ai-collaboration", "templates", "ai-native"]
+}
