@@ -1,0 +1,153 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Create Plugin Directory Structure and Configuration",
+        "description": "Set up the basic plugin directory structure with plugin.json configuration file",
+        "details": "Create the following directory structure:\n```\nauto-dev/\n├── .claude-plugin/\n│   └── plugin.json\n├── commands/\n└── skills/\n    └── execute-loop/\n```\n\nCreate plugin.json with exact content:\n```json\n{\n  \"name\": \"auto-dev\",\n  \"version\": \"0.1.0\",\n  \"description\": \"自动化开发助手 - 快速迭代，持续学习\",\n  \"commands\": [\"auto-dev\"],\n  \"skills\": [\"execute-loop\"],\n  \"mcp_dependencies\": [\"taskmaster-ai\"]\n}\n```\n\nEnsure proper file permissions and JSON formatting.",
+        "testStrategy": "1. Verify directory structure exists with correct hierarchy\n2. Validate plugin.json is valid JSON and contains all required fields\n3. Check that commands and skills arrays reference correct components\n4. Verify mcp_dependencies includes taskmaster-ai",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T07:02:27.361Z"
+      },
+      {
+        "id": "2",
+        "title": "Implement Environment Preparation Logic",
+        "description": "Create the environment preparation component that checks TaskMaster initialization and creates git worktree isolation",
+        "details": "Implement environment preparation logic in /auto-dev command:\n\n```pseudo\nfunction prepareEnvironment():\n  // Check TaskMaster initialization status\n  try:\n    status = call_mcp('taskmaster-ai', 'check_initialization')\n    if not status.initialized:\n      throw Error('TaskMaster not initialized')\n  catch error:\n    output 'Please initialize TaskMaster first'\n    return false\n  \n  // Create git worktree for isolation\n  worktreeName = 'auto-dev-' + timestamp()\n  result = call_superpower('using-git-worktrees', {\n    action: 'create',\n    name: worktreeName,\n    branch: 'auto-dev/' + worktreeName\n  })\n  \n  if result.success:\n    store worktreePath for later use\n    return true\n  else:\n    output 'Failed to create worktree: ' + result.error\n    return false\n```\n\nStore worktree path in context for subsequent steps.",
+        "testStrategy": "1. Test with TaskMaster not initialized - should fail gracefully\n2. Test with TaskMaster initialized - should create worktree successfully\n3. Verify worktree is created with correct naming pattern\n4. Verify worktree path is stored and accessible\n5. Test error handling when git worktree creation fails",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T07:08:07.990Z"
+      },
+      {
+        "id": "3",
+        "title": "Implement Document Preparation Logic",
+        "description": "Create functionality to copy design documents to the worktree isolation environment",
+        "details": "Implement document copying logic:\n\n```pseudo\nfunction prepareDocuments(designDocPath, worktreePath):\n  // Validate input document exists\n  if not file_exists(designDocPath):\n    throw Error('Design document not found: ' + designDocPath)\n  \n  // Determine file extension\n  extension = get_file_extension(designDocPath)\n  if extension not in ['.txt', '.md']:\n    extension = '.txt'  // default\n  \n  // Create target directory\n  targetDir = worktreePath + '/.taskmaster/docs/'\n  create_directory_recursive(targetDir)\n  \n  // Copy document to worktree\n  targetPath = targetDir + 'prd' + extension\n  copy_file(designDocPath, targetPath)\n  \n  // Verify copy succeeded\n  if not file_exists(targetPath):\n    throw Error('Failed to copy design document')\n  \n  return targetPath\n```\n\nHandle both .txt and .md file extensions as specified in PRD.",
+        "testStrategy": "1. Test with valid .md file - should copy successfully\n2. Test with valid .txt file - should copy successfully\n3. Test with non-existent file - should fail with clear error\n4. Verify .taskmaster/docs/ directory is created\n5. Verify copied file content matches original\n6. Test with file without extension - should default to .txt",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T07:08:45.610Z"
+      },
+      {
+        "id": "4",
+        "title": "Implement Task Checking Logic",
+        "description": "Create logic to check for existing uncompleted tasks using TaskMaster get_tasks",
+        "details": "Implement task checking logic:\n\n```pseudo\nfunction checkExistingTasks():\n  // Call TaskMaster to get all tasks\n  try:\n    response = call_mcp('taskmaster-ai', 'get_tasks', {})\n    tasks = response.tasks\n    \n    // Filter for uncompleted tasks\n    uncompletedTasks = tasks.filter(task => task.status != 'done')\n    \n    if uncompletedTasks.length > 0:\n      output 'Found ' + uncompletedTasks.length + ' uncompleted tasks'\n      return {\n        hasUncompletedTasks: true,\n        count: uncompletedTasks.length,\n        tasks: uncompletedTasks\n      }\n    else:\n      output 'No uncompleted tasks found'\n      return {\n        hasUncompletedTasks: false,\n        count: 0,\n        tasks: []\n      }\n  catch error:\n    output 'Error checking tasks: ' + error\n    return {\n      hasUncompletedTasks: false,\n      count: 0,\n      tasks: []\n    }\n```\n\nReturn structured data for decision making in next step.",
+        "testStrategy": "1. Test with no tasks - should return hasUncompletedTasks: false\n2. Test with all completed tasks - should return hasUncompletedTasks: false\n3. Test with some uncompleted tasks - should return correct count\n4. Test with all uncompleted tasks - should return all tasks\n5. Verify MCP call parameters are correct\n6. Test error handling when TaskMaster is unavailable",
+        "priority": "medium",
+        "dependencies": [
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T07:09:21.237Z"
+      },
+      {
+        "id": "5",
+        "title": "Implement Task Breakdown Logic",
+        "description": "Create logic to parse PRD and generate tasks using TaskMaster parse_prd when no uncompleted tasks exist",
+        "details": "Implement task breakdown logic:\n\n```pseudo\nfunction breakdownTasks(prdPath, taskCheckResult):\n  // Skip if uncompleted tasks exist\n  if taskCheckResult.hasUncompletedTasks:\n    output 'Skipping task breakdown - uncompleted tasks exist'\n    return true\n  \n  // Call TaskMaster parse_prd\n  output 'Parsing PRD to generate tasks...'\n  try:\n    response = call_mcp('taskmaster-ai', 'parse_prd', {\n      prdPath: prdPath,\n      numTasks: 0  // Auto-determine number of tasks\n    })\n    \n    if response.success:\n      output 'Successfully generated ' + response.taskCount + ' tasks'\n      return true\n    else:\n      output 'Failed to parse PRD: ' + response.error\n      return false\n  catch error:\n    output 'Error calling parse_prd: ' + error\n    return false\n```\n\nEnsure numTasks is set to 0 for automatic determination as specified.",
+        "testStrategy": "1. Test with uncompleted tasks - should skip parse_prd\n2. Test with no tasks - should call parse_prd with numTasks: 0\n3. Verify parse_prd is called with correct prdPath parameter\n4. Test successful task generation - should return true\n5. Test parse_prd failure - should handle error gracefully\n6. Verify task count is logged after successful generation",
+        "priority": "high",
+        "dependencies": [
+          "4"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T07:10:00.046Z"
+      },
+      {
+        "id": "6",
+        "title": "Implement Ralph Loop Launcher",
+        "description": "Create logic to start Ralph Loop with correct parameters for execute-loop skill execution",
+        "details": "Implement Ralph Loop launcher:\n\n```pseudo\nfunction launchRalphLoop():\n  // Prepare Ralph Loop command parameters\n  instruction = '使用 Skill 工具调用 auto-dev:execute-loop'\n  completionPromise = 'ALL TASKS DONE'\n  maxIterations = 50\n  \n  // Build command\n  command = '/ralph-loop \"' + instruction + '\" ' +\n            '--completion-promise \"' + completionPromise + '\" ' +\n            '--max-iterations ' + maxIterations\n  \n  output 'Starting Ralph Loop execution...'\n  output 'Command: ' + command\n  \n  // Execute Ralph Loop\n  try:\n    result = execute_command('ralph-loop', {\n      instruction: instruction,\n      completionPromise: completionPromise,\n      maxIterations: maxIterations\n    })\n    \n    return result\n  catch error:\n    output 'Failed to start Ralph Loop: ' + error\n    return false\n```\n\nEnsure exact parameter values as specified in PRD.",
+        "testStrategy": "1. Verify instruction parameter is exactly '使用 Skill 工具调用 auto-dev:execute-loop'\n2. Verify completion-promise is 'ALL TASKS DONE'\n3. Verify max-iterations is 50\n4. Test Ralph Loop command execution\n5. Verify error handling when Ralph Loop is unavailable\n6. Test command string formatting is correct",
+        "priority": "high",
+        "dependencies": [
+          "5"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T07:10:21.134Z"
+      },
+      {
+        "id": "7",
+        "title": "Create /auto-dev Command Integration",
+        "description": "Integrate all components into the main /auto-dev command file (commands/auto-dev.md)",
+        "details": "Create commands/auto-dev.md with complete workflow:\n\n```markdown\n# /auto-dev Command\n\n## Description\n自动化开发助手 - 初始化执行环境并启动任务执行循环\n\n## Usage\n/auto-dev <design-doc-path>\n\n## Workflow\n\n1. **Environment Preparation**\n   - Check TaskMaster initialization\n   - Create git worktree isolation environment\n\n2. **Document Preparation**\n   - Copy design document to worktree/.taskmaster/docs/prd.txt (or .md)\n\n3. **Task Checking**\n   - Call TaskMaster get_tasks to check for uncompleted tasks\n   - If uncompleted tasks exist, skip task breakdown\n\n4. **Task Breakdown** (if no uncompleted tasks)\n   - Call TaskMaster parse_prd with numTasks: 0\n\n5. **Launch Execution**\n   - Start Ralph Loop with execute-loop skill\n   - Completion promise: 'ALL TASKS DONE'\n   - Max iterations: 50\n\n## Implementation\n[Integrate functions from tasks 2-6]\n```\n\nWire all components together in proper sequence.",
+        "testStrategy": "1. Test complete workflow with new PRD - should execute all steps\n2. Test with existing uncompleted tasks - should skip parse_prd\n3. Verify each step executes in correct order\n4. Test error handling at each step\n5. Verify command is recognized by Claude Code\n6. End-to-end test with simple 1-2 task PRD",
+        "priority": "high",
+        "dependencies": [
+          "6"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T07:11:45.491Z"
+      },
+      {
+        "id": "8",
+        "title": "Implement execute-loop Skill Task Retrieval",
+        "description": "Create the task retrieval and completion detection logic for execute-loop skill",
+        "details": "Create skills/execute-loop/SKILL.md with task retrieval logic:\n\n```pseudo\nfunction getNextTask():\n  // Call TaskMaster next_task\n  try:\n    response = call_mcp('taskmaster-ai', 'next_task', {})\n    \n    if response.task == null or response.task == undefined:\n      // No more tasks - output completion promise\n      output '<promise>ALL TASKS DONE</promise>'\n      return null\n    else:\n      output 'Retrieved task: ' + response.task.id + ' - ' + response.task.title\n      return response.task\n  catch error:\n    output 'Error retrieving next task: ' + error\n    throw error\n```\n\nEnsure exact promise format with XML tags as specified.",
+        "testStrategy": "1. Test with available tasks - should return task object\n2. Test with no tasks - should output '<promise>ALL TASKS DONE</promise>'\n3. Verify promise format matches exactly\n4. Test error handling when TaskMaster unavailable\n5. Verify task object contains all required fields\n6. Test that promise is only output when truly no tasks remain",
+        "priority": "high",
+        "dependencies": [
+          "7"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T07:14:47.621Z"
+      },
+      {
+        "id": "9",
+        "title": "Implement execute-loop TDD and Verification Flow",
+        "description": "Create TDD implementation and verification logic following superpowers guidelines",
+        "details": "Implement TDD and verification in execute-loop:\n\n```pseudo\nfunction executeTDD(task):\n  output 'Starting TDD for task: ' + task.title\n  \n  // Step 1: Write failing test (test-driven-development)\n  call_superpower('test-driven-development', {\n    phase: 'write-test',\n    task: task,\n    expectFailure: true\n  })\n  \n  // Step 2: Implement code to pass test\n  call_superpower('test-driven-development', {\n    phase: 'implement',\n    task: task\n  })\n  \n  // Step 3: Refactor\n  call_superpower('test-driven-development', {\n    phase: 'refactor',\n    task: task\n  })\n  \n  // Step 4: Verification (verification-before-completion)\n  verificationResult = call_superpower('verification-before-completion', {\n    task: task,\n    requireEvidence: true\n  })\n  \n  if verificationResult.passed:\n    output 'Verification passed with evidence'\n    return {\n      success: true,\n      evidence: verificationResult.evidence\n    }\n  else:\n    output 'Verification failed'\n    return {\n      success: false,\n      error: verificationResult.error\n    }\n```\n\nStrictly follow superpower guidelines for TDD and verification.",
+        "testStrategy": "1. Test TDD flow executes all three phases (test, implement, refactor)\n2. Verify test-driven-development superpower is called correctly\n3. Verify verification-before-completion is called with requireEvidence\n4. Test successful verification returns evidence\n5. Test failed verification returns error details\n6. Verify no completion claim without verification evidence",
+        "priority": "high",
+        "dependencies": [
+          "8"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T07:15:48.905Z"
+      },
+      {
+        "id": "10",
+        "title": "Implement execute-loop Result Handling and Error Recovery",
+        "description": "Create result processing logic with success/failure handling and systematic debugging integration",
+        "details": "Implement result handling in execute-loop:\n\n```pseudo\nfunction handleTaskResult(task, tddResult):\n  if tddResult.success:\n    // Mark task as done\n    try:\n      call_mcp('taskmaster-ai', 'set_task_status', {\n        taskId: task.id,\n        status: 'done'\n      })\n      output 'Task ' + task.id + ' completed successfully'\n      return true\n    catch error:\n      output 'Error updating task status: ' + error\n      return false\n  else:\n    // Handle failure with systematic debugging\n    output 'Task failed, initiating systematic debugging...'\n    \n    debugResult = call_superpower('systematic-debugging', {\n      task: task,\n      error: tddResult.error,\n      evidence: tddResult.evidence\n    })\n    \n    if debugResult.resolved:\n      output 'Issue resolved, retrying task...'\n      return 'retry'\n    else:\n      // Track failure count\n      task.failureCount = (task.failureCount || 0) + 1\n      \n      if task.failureCount >= 3:\n        output 'Task failed multiple times, pausing for user intervention'\n        output 'Task ID: ' + task.id\n        output 'Error: ' + tddResult.error\n        return 'pause'\n      else:\n        output 'Retrying task (attempt ' + (task.failureCount + 1) + ')'\n        return 'retry'\n```\n\nImplement retry logic and failure tracking.",
+        "testStrategy": "1. Test successful task - should call set_task_status with 'done'\n2. Test failed task - should call systematic-debugging\n3. Test resolved debugging - should return 'retry'\n4. Test multiple failures - should pause after 3 attempts\n5. Verify failure count is tracked correctly\n6. Test user intervention message includes task details\n7. End-to-end test: simple 1-2 task PRD completes to 'ALL TASKS DONE'",
+        "priority": "medium",
+        "dependencies": [
+          "9"
+        ],
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-13T07:16:24.270Z"
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-01-13T07:16:24.270Z",
+      "taskCount": 10,
+      "completedCount": 10,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}

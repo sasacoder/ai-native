@@ -1,0 +1,15 @@
+{
+  "name": "auto-dev",
+  "version": "0.1.0",
+  "description": "自动化开发助手 - 快速迭代，持续学习",
+  "author": {
+    "name": "sasacoder",
+    "url": "https://github.com/sasacoder"
+  },
+  "repository": "https://github.com/sasacoder/ai-native/tree/main/auto-dev",
+  "license": "MIT",
+  "keywords": ["automation", "ai-development", "taskmaster", "ralph-loop"],
+  "commands": ["auto-dev"],
+  "skills": ["execute-loop"],
+  "mcp_dependencies": ["taskmaster-ai"]
+}
